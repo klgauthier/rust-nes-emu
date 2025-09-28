@@ -23,6 +23,7 @@ pub enum CPUFlags
     InterruptDisable,
     DecimalMode,
     Break,
+    Break2,
     Overflow,
     Negative,
 }
@@ -42,9 +43,42 @@ pub enum AddressingMode
     NoneAddressing,
 }
 
+trait Memory 
+{
+    fn mem_read(&self, addr: u16) -> u8;
+    fn mem_write(&mut self, addr: u16, data: u8);
+
+    fn mem_read_u16(&self, addr: u16) -> u16
+    {
+        let low = self.mem_read(addr) as u16;
+        let high = self.mem_read(addr+1) as u16;
+        return (high << 8) | low;
+    }
+
+    fn mem_write_u16(&mut self, addr: u16, data: u16)
+    {
+        let low = (data >> 8) as u8;
+        let high = (data & 0xff) as u8;
+        self.mem_write(addr, low);
+        self.mem_write(addr+1, high);
+    }
+}
+
+impl Memory for CPU
+{
+    fn mem_read(&self, addr: u16) -> u8
+    {
+        return self.memory[addr as usize];
+    }
+
+    fn mem_write(&mut self, addr: u16, data: u8)
+    {
+        self.memory[addr as usize] = data;
+    }
+}
+
 impl CPU
 {
-    
     pub fn new() -> Self
     {
         return CPU {
@@ -124,30 +158,7 @@ impl CPU
         }
     }
 
-    fn mem_read(&self, addr: u16) -> u8
-    {
-        return self.memory[addr as usize];
-    }
-
-    fn mem_read_u16(&self, addr: u16) -> u16
-    {
-        let low = self.mem_read(addr) as u16;
-        let high = self.mem_read(addr+1) as u16;
-        return (high << 8) | low;
-    }
-
-    fn mem_write(&mut self, addr: u16, data: u8)
-    {
-        self.memory[addr as usize] = data;
-    }
-
-    fn mem_write_u16(&mut self, addr: u16, data: u16)
-    {
-        let low = (data >> 8) as u8;
-        let high = (data & 0xff) as u8;
-        self.mem_write(addr, low);
-        self.mem_write(addr+1, high);
-    }
+    
 
     fn lda(&mut self, mode: &AddressingMode)
     {
