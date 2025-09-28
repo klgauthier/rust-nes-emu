@@ -1,7 +1,6 @@
 // Copyright 2025 Kevin Gauthier. All rights reserved.
 
 use crate::cpu::AddressingMode;
-use lazy_static::lazy_static;
 use std::collections::HashMap;
 
 pub struct OpCode
@@ -29,6 +28,8 @@ impl OpCode {
 lazy_static!
 {
     pub static ref CPU_OP_CODES: Vec<OpCode> = vec![
+        // Table Source: https://www.nesdev.org/obelisk-6502-guide/reference.html
+
         /* ADC - Add with Carry */
         OpCode::new(0x69, "ADC", 2, 2, AddressingMode::Immediate),
         OpCode::new(0x65, "ADC", 2, 3, AddressingMode::ZeroPage),
@@ -216,7 +217,82 @@ lazy_static!
         /* PLP - Pull Processor Status */
         OpCode::new(0x68, "PLP", 1, 4, AddressingMode::NoneAddressing),
 
-        // TODO : https://www.nesdev.org/obelisk-6502-guide/reference.html#ROL
+        /* ROL - Rotate Left */
+        OpCode::new(0x2A, "ROL", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0x26, "ROL", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0x36, "ROL", 2, 6, AddressingMode::ZeroPageX),
+        OpCode::new(0x2E, "ROL", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0x3E, "ROL", 3, 7, AddressingMode::AbsoluteX),
+
+        /* ROR - Rotate Right */
+        OpCode::new(0x6A, "ROR", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0x66, "ROR", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0x76, "ROR", 2, 6, AddressingMode::ZeroPageX),
+        OpCode::new(0x6E, "ROR", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0x7E, "ROR", 3, 7, AddressingMode::AbsoluteX),
+
+        /* RTI - Return from Interrupt */
+        OpCode::new(0x40, "RTI", 1, 6, AddressingMode::NoneAddressing),
+
+        /* RTS - Return from Subroutine */
+        OpCode::new(0x60, "RTS", 1, 6, AddressingMode::NoneAddressing),
+
+        /* SBC - Subtract with Carry */
+        OpCode::new(0xE9, "SBC", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0xE5, "SBC", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0xF5, "SBC", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0xED, "SBC", 3, 4, AddressingMode::Absolute),
+        OpCode::new(0xFD, "SBC", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteX),
+        OpCode::new(0xF9, "SBC", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteY),
+        OpCode::new(0xE1, "SBC", 2, 6, AddressingMode::IndirectX),
+        OpCode::new(0xF1, "SBC", 2, 5 /* +1 if page crossed */, AddressingMode::IndirectY),
+
+        /* SEC - Set Carry Flag */
+        OpCode::new(0x38, "SEC", 1, 2, AddressingMode::NoneAddressing),
+
+        /* SED - Set Decimal Flag */
+        OpCode::new(0xF8, "SED", 1, 2, AddressingMode::NoneAddressing),
+
+        /* SEI - Set Interrupt Disable */
+        OpCode::new(0x78, "SEI", 1, 2, AddressingMode::NoneAddressing),
+
+        /* STA - Store Accumulator */
+        OpCode::new(0x85, "STA", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0x95, "STA", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x8D, "STA", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0x9D, "STA", 3, 4, AddressingMode::Absolute),
+        OpCode::new(0xFD, "STA", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteX),
+        OpCode::new(0x99, "STA", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteY),
+        OpCode::new(0x81, "STA", 2, 6, AddressingMode::IndirectX),
+        OpCode::new(0x91, "STA", 2, 5 /* +1 if page crossed */, AddressingMode::IndirectY),
+
+         /* STX - Store X Register */
+        OpCode::new(0x86, "STX", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x96, "STX", 2, 4, AddressingMode::ZeroPageY),
+        OpCode::new(0x8E, "STX", 3, 4, AddressingMode::Absolute),
+
+         /* STY - Store Y Register */
+        OpCode::new(0x84, "STY", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x94, "STY", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0x8C, "STY", 3, 4, AddressingMode::Absolute),
+
+        /* TAX - Transfer Accumulator to X */
+        OpCode::new(0xAA, "TAX", 1, 2, AddressingMode::NoneAddressing),
+
+        /* TAY - Transfer Accumulator to Y */
+        OpCode::new(0xA8, "TAY", 1, 2, AddressingMode::NoneAddressing),
+
+        /* TSX - Transfer Stack Pointer to X */
+        OpCode::new(0xBA, "TSX", 1, 2, AddressingMode::NoneAddressing),
+
+        /* TXA - Transfer X to Accumulator */
+        OpCode::new(0x8A, "TXA", 1, 2, AddressingMode::NoneAddressing),
+
+        /* TXS - Transfer X to Stack Pointer */
+        OpCode::new(0x9A, "TXS", 1, 2, AddressingMode::NoneAddressing),
+
+        /* TYA - Transfer Y to Accumulator */
+        OpCode::new(0x98, "TYA", 1, 2, AddressingMode::NoneAddressing),
     ];
 
     pub static ref OPCODES_MAP: HashMap<u8, &'static OpCode> = {
