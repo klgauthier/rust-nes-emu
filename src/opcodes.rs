@@ -3,6 +3,7 @@
 use crate::cpu::AddressingMode;
 use std::collections::HashMap;
 
+#[derive(Eq, PartialEq, Hash)]
 pub struct OpCode
 {
     pub code: u8,
@@ -156,7 +157,7 @@ lazy_static!
         
         /* JMP - Jump */
         OpCode::new(0x4C, "JMP", 3, 3, AddressingMode::Absolute),
-        OpCode::new(0x6C, "JMP", 3, 5, AddressingMode::NoneAddressing),
+        OpCode::new(0x6C, "JMP", 3, 5, AddressingMode::NoneAddressing /* Indirect addressing requires 6502 bug emulation */), 
         
         /* JSR - Jump to Subroutine */
         OpCode::new(0x20, "JSR", 3, 6, AddressingMode::Absolute),
