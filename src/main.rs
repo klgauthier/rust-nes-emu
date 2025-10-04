@@ -75,7 +75,7 @@ fn main() {
             canvas.copy(&texture, None, None).unwrap();
             canvas.present();
 
-            let timeout = Duration::from_millis(16);
+            let timeout = Duration::from_millis(32);
             std::thread::park_timeout(timeout);
         }
 
