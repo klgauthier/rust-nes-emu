@@ -4,7 +4,6 @@ pub mod cpu;
 pub mod opcodes;
 
 use std::time::Duration;
-use std::time::Instant;
 
 use cpu::CPU;
 use cpu::Memory;

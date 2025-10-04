@@ -662,8 +662,9 @@ impl CPU
     }
 
     fn rol_accumulator(&mut self) {
+        let old_carry = self.get_flag(CPUFlags::Carry) as u8;
         self.set_flag(CPUFlags::Carry, (self.register_a & 0b1000_0000) != 0);
-        self.register_a = self.register_a << 1;
+        self.register_a = (self.register_a << 1) | old_carry;
         self.update_zero_and_negative_flags(self.register_a);
     }
 
@@ -671,25 +672,28 @@ impl CPU
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
 
+        let old_carry = self.get_flag(CPUFlags::Carry) as u8;
         self.set_flag(CPUFlags::Carry, (value & 0b1000_0000) != 0);
-        let result= value << 1;
+        let result= (value << 1) | old_carry;
         self.mem_write(addr, result);
         self.set_flag(CPUFlags::Zero, self.register_a == 0);
         self.set_flag(CPUFlags::Negative, (result & 0b1000_0000) != 0);
     }
 
     fn ror_accumulator(&mut self) {
+        let old_carry = self.get_flag(CPUFlags::Carry) as u8;
         self.set_flag(CPUFlags::Carry, (self.register_a & 0b0000_0001) != 0);
-        self.register_a = self.register_a >> 1;
+        self.register_a = (self.register_a >> 1) | (old_carry << 7);
         self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn ror_memory(&mut self, mode: &AddressingMode) {
+        let old_carry = self.get_flag(CPUFlags::Carry) as u8;
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
 
         self.set_flag(CPUFlags::Carry, (value & 0b0000_0001) != 0);
-        let result= value >> 1;
+        let result= (value >> 1) | (old_carry << 7);
         self.mem_write(addr, result);
         self.set_flag(CPUFlags::Zero, self.register_a == 0);
         self.set_flag(CPUFlags::Negative, (result & 0b1000_0000) != 0);
@@ -904,8 +908,7 @@ impl CPU
 }
 
 #[cfg(test)]
-mod test
-{
+mod test {
     use super::*;
 
     fn test_run(bytes: Vec<u8>) -> CPU {
@@ -1250,7 +1253,7 @@ mod test
 
     #[test]
     fn test_dex_0x2() {
-        let cpu = test_run(vec![0xA2, 0x02, 0xE6, 0x00]);
+        let cpu = test_run(vec![0xA2, 0x02, 0xCA, 0x00]);
         assert!(cpu.register_x==0x01);
     }
 
@@ -1281,7 +1284,7 @@ mod test
     #[test]
     fn test_jmp_absolute_0x1234() {
         let cpu = test_run(vec![0x4C, 0x34, 0x12, 0x00]);
-        assert!(cpu.program_counter == 0x1234);
+        assert!(cpu.program_counter == 0x1234+1);
     }
 
     #[test]
@@ -1313,4 +1316,194 @@ mod test
         assert!(cpu.program_counter == (ADDR_2_RESULT+1)); // +1 because of the break execute
     }
 
+    #[test]
+    fn test_jsr() {
+        let mut cpu = test_run(vec![0xEA, 0xEA, 0x20, 0x06, 0x06, 0x00, 0xEA, 0x00]);
+        assert!(cpu.program_counter == 0x0608);
+        let stack_value = cpu.pop_stack_u16();
+        assert!(stack_value == 0x0606-1);
+    }
+
+    #[test]
+    fn test_lda_0x01() {
+        let cpu = test_run(vec![0xA9, 0x01, 0x00]);
+        assert!(cpu.register_a == 0x01);
+    }
+
+    #[test]
+    fn test_ldx_0x01() {
+        let cpu = test_run(vec![0xA2, 0x01, 0x00]);
+        assert!(cpu.register_x == 0x01);
+    }
+
+    #[test]
+    fn test_ldy_0x01() {
+        let cpu = test_run(vec![0xA0, 0x01, 0x00]);
+        assert!(cpu.register_y == 0x01);
+    }
+
+    #[test]
+    fn test_lsr_0x02_to_0x01() {
+        let cpu = test_run(vec![0xA9, 0x02, 0x4A, 0x00]);
+        assert!(cpu.register_a == 0x01);
+    }
+
+    #[test]
+    fn test_nop() {
+        let cpu = test_run(vec![0xEA, 0x00]);
+        assert!(cpu.program_counter == 0x0602);
+    }
+
+    #[test]
+    fn test_ora_0x04_and_0x01() {
+        let cpu = test_run(vec![0xA9, 0x04, 0x09, 0x01, 0x00]);
+        assert!(cpu.register_a == 0x05);
+    }
+
+    #[test]
+    fn test_pha_0x02() {
+        let mut cpu = test_run(vec![0xA9, 0x02, 0x48, 0x00]);
+        let value = cpu.pop_stack();
+        assert!(value == 0x02);
+    }
+
+    #[test]
+    fn test_php_0x02() {
+        let mut cpu = CPU::new();
+        cpu.set_flag(CPUFlags::Zero, true);
+        cpu.load_and_run(vec![0x08, 0x00]);
+        let stack_value = cpu.pop_stack();
+        assert!(stack_value == 0x02);
+    }
+
+    #[test]
+    fn test_pla_0x01() {
+        let mut cpu = CPU::new();
+        cpu.push_stack(0x01);
+        cpu.load_and_run(vec![0x68, 0x00]);
+        assert!(cpu.register_a == 0x01);
+    }
+
+    #[test]
+    fn test_plp_0x01() {
+        let mut cpu = CPU::new();
+        cpu.push_stack(0x01);
+        cpu.load_and_run(vec![0x28, 0x00]);
+        assert!(cpu.status == 0x01);
+    }
+
+    #[test]
+    fn test_rol_0x80_with_carry_to_0x01() {
+        let mut cpu = CPU::new();
+        cpu.set_flag(CPUFlags::Carry, true);
+        cpu.load_and_run(vec![0xA9, 0x80, 0x2A, 0x00]);
+        assert!(cpu.register_a == 0x01);
+        assert!(cpu.get_flag(CPUFlags::Carry));
+    }
+
+    #[test]
+    fn test_rol_0x80_no_carry_to_0x00() {
+        let mut cpu = CPU::new();
+        cpu.set_flag(CPUFlags::Carry, false);
+        cpu.load_and_run(vec![0xA9, 0x80, 0x2A, 0x00]);
+        assert!(cpu.register_a == 0x00);
+        assert!(cpu.get_flag(CPUFlags::Carry));
+    }
+
+    #[test]
+    fn test_ror_0x00_with_carry_to_0x80() {
+        let mut cpu = CPU::new();
+        cpu.set_flag(CPUFlags::Carry, true);
+        cpu.load_and_run(vec![0xA9, 0x00, 0x6A, 0x00]);
+        assert!(cpu.register_a == 0x80);
+        assert!(!cpu.get_flag(CPUFlags::Carry));
+    }
+
+    #[test]
+    fn test_rti_0x0604() {
+        let mut cpu = CPU::new();
+        cpu.push_stack_u16(0x0602);
+        cpu.push_stack(0x01);
+        cpu.load_and_run(vec![0x40, 0x00, 0xEA, 0x00]);
+        assert!(cpu.status == 0x01);
+        assert!(cpu.program_counter == 0x0604);
+    }
+
+    #[test]
+    fn test_rts_0x0604() {
+        let mut cpu = CPU::new();
+        cpu.push_stack_u16(0x0602);
+        cpu.load_and_run(vec![0x60, 0x00, 0xEA, 0x00]);
+        assert!(cpu.program_counter == 0x0604);
+    }
+
+    #[test]
+    fn test_sbc_0x04_minus_0x03() {
+        let cpu = test_run(vec![0xA9, 0x04, 0xE9, 0x03, 0x00]);
+        assert!(cpu.register_a == 0x01);
+    }
+
+    #[test]
+    fn test_sbc_0x01_minus_0x02() {
+        let cpu = test_run(vec![0xA9, 0x01, 0xE9, 0x02, 0x00]);
+        assert!(cpu.register_a == 0xFF);
+    }
+
+    #[test]
+    fn test_sta_0x01() {
+        let cpu = test_run(vec![0xA9, 0x01, 0x85, 0x00, 0x00]);
+        assert!(cpu.mem_read(0x00) == 0x01);
+    }
+
+    #[test]
+    fn test_stx_0x01() {
+        let cpu = test_run(vec![0xA2, 0x01, 0x86, 0x00, 0x00]);
+        assert!(cpu.mem_read(0x00) == 0x01);
+    }
+
+    #[test]
+    fn test_txa_0x01() {
+        let cpu = test_run(vec![0xA2, 0x01, 0x8A, 0x00]);
+        assert!(cpu.register_a == 0x01);
+    }
+
+    #[test]
+    fn test_sty_0x01() {
+        let cpu = test_run(vec![0xA0, 0x01, 0x84, 0x00, 0x00]);
+        assert!(cpu.mem_read(0x00) == 0x01);
+    }
+
+    #[test]
+    fn test_tya_0x01() {
+        let cpu = test_run(vec![0xA0, 0x01, 0x98, 0x00]);
+        assert!(cpu.register_a == 0x01);
+    }
+
+    #[test]
+    fn test_tax_0x01() {
+        let cpu = test_run(vec![0xA9, 0x01, 0xAA, 0x00]);
+        assert!(cpu.register_x == 0x01);
+    }
+
+    #[test]
+    fn test_tay_0x01() {
+        let cpu = test_run(vec![0xA9, 0x01, 0xA8, 0x00]);
+        assert!(cpu.register_y == 0x01);
+    }
+
+    #[test]
+    fn test_tsx_0x01() {
+        let mut cpu = CPU::new();
+        cpu.push_stack(0x01);
+        cpu.load_and_run(vec![0xBA, 0x00]);
+        assert!(cpu.register_x == ((ADDR_STACK_TOP - ADDR_STACK_BOTTOM - 1) as u8));
+    }
+
+    #[test]
+    fn test_txs() {
+        let mut cpu = CPU::new();
+        const TEST_VALUE: u8 = (ADDR_STACK_TOP - ADDR_STACK_BOTTOM - 1) as u8;
+        cpu.load_and_run(vec![0xA2, TEST_VALUE, 0x9A]);
+        assert!(cpu.stack_pointer == TEST_VALUE);
+    }
 }

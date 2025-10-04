@@ -216,7 +216,7 @@ lazy_static!
         OpCode::new(0x68, "PLA", 1, 4, AddressingMode::NoneAddressing),
 
         /* PLP - Pull Processor Status */
-        OpCode::new(0x68, "PLP", 1, 4, AddressingMode::NoneAddressing),
+        OpCode::new(0x28, "PLP", 1, 4, AddressingMode::NoneAddressing),
 
         /* ROL - Rotate Left */
         OpCode::new(0x2A, "ROL", 1, 2, AddressingMode::NoneAddressing),
