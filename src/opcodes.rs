@@ -93,7 +93,7 @@ lazy_static!
         OpCode::new(0x18, "CLC", 1, 2, AddressingMode::NoneAddressing), 
 
         /* CDM - Clear Decimal Mode */
-        OpCode::new(0xD8, "CDM", 1, 2, AddressingMode::NoneAddressing), 
+        OpCode::new(0xD8, "CLD", 1, 2, AddressingMode::NoneAddressing), 
 
         /* CLI - Clear Decimal Mode */
         OpCode::new(0x58, "CLI", 1, 2, AddressingMode::NoneAddressing), 
@@ -194,7 +194,7 @@ lazy_static!
         OpCode::new(0x5E, "LSR", 3, 7, AddressingMode::AbsoluteX),
 
         /* NOP - No Operation */
-        OpCode::new(0x4A, "NOP", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0xEA, "NOP", 1, 2, AddressingMode::NoneAddressing),
 
         /* ORA - Logical Inclusive OR */
         OpCode::new(0x09, "ORA", 2, 2, AddressingMode::Immediate),
@@ -258,11 +258,10 @@ lazy_static!
         OpCode::new(0x78, "SEI", 1, 2, AddressingMode::NoneAddressing),
 
         /* STA - Store Accumulator */
-        OpCode::new(0x85, "STA", 2, 2, AddressingMode::Immediate),
-        OpCode::new(0x95, "STA", 2, 3, AddressingMode::ZeroPage),
-        OpCode::new(0x8D, "STA", 2, 4, AddressingMode::ZeroPageX),
-        OpCode::new(0x9D, "STA", 3, 4, AddressingMode::Absolute),
-        OpCode::new(0xFD, "STA", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteX),
+        OpCode::new(0x85, "STA", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x95, "STA", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0x8D, "STA", 3, 4, AddressingMode::Absolute),
+        OpCode::new(0x9D, "STA", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteX),
         OpCode::new(0x99, "STA", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteY),
         OpCode::new(0x81, "STA", 2, 6, AddressingMode::IndirectX),
         OpCode::new(0x91, "STA", 2, 5 /* +1 if page crossed */, AddressingMode::IndirectY),
