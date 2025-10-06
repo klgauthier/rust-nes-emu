@@ -1,7 +1,9 @@
 // Copyright 2025 Kevin Gauthier. All rights reserved.
 
 use std::collections::HashMap;
+use crate::cartridge::Rom;
 use crate::opcodes;
+use crate::bus::{Bus, Memory};
 
 pub struct CPU
 {
@@ -11,10 +13,9 @@ pub struct CPU
     pub status: u8,
     pub program_counter: u16,
     pub stack_pointer: u8,
-    memory: [u8; 0xFFFF]
+    pub bus: Bus,
 }
 
-const ADDR_PRG_ROM : usize = 0x600; // change back to 0x8000
 const ADDR_STACK_TOP : u16 = 0x01FF;
 const ADDR_STACK_BOTTOM : u16 = 0x0100;
 
@@ -47,33 +48,22 @@ pub enum AddressingMode
     NoneAddressing,
 }
 
-pub trait Memory 
-{
-    fn mem_read(&self, addr: u16) -> u8;
-    fn mem_write(&mut self, addr: u16, data: u8);
-
-    fn mem_read_u16(&self, addr: u16) -> u16 {
-        let low = self.mem_read(addr) as u16;
-        let high = self.mem_read(addr+1) as u16;
-        return (high << 8) | low;
-    }
-
-    fn mem_write_u16(&mut self, addr: u16, data: u16) {
-        let high = (data >> 8) as u8;
-        let low = data as u8;
-        self.mem_write(addr, low);
-        self.mem_write(addr+1, high);
-    }
-}
-
 impl Memory for CPU
 {
     fn mem_read(&self, addr: u16) -> u8 {
-        return self.memory[addr as usize];
+        return self.bus.mem_read(addr);
     }
 
     fn mem_write(&mut self, addr: u16, data: u8) {
-        self.memory[addr as usize] = data;
+        self.bus.mem_write(addr, data);
+    }
+
+    fn mem_read_u16(&self, addr: u16) -> u16 {
+        return self.bus.mem_read_u16(addr);
+    }
+
+    fn mem_write_u16(&mut self, addr: u16, data: u16) {
+        self.bus.mem_write_u16(addr, data);
     }
 }
 
@@ -84,47 +74,28 @@ impl CPU
             register_a: 0,
             register_x: 0,
             register_y: 0,
-            status: 0,
+            status: 0 | (1 << CPUFlags::InterruptDisable as u8),
             program_counter: 0,
             stack_pointer: (ADDR_STACK_TOP - ADDR_STACK_BOTTOM) as u8,
-            memory: [0; 0xFFFF]
+            bus: Bus::new(),
         }
     }
 
-    pub fn load(&mut self, program: Vec<u8>) {
-        self.memory[ADDR_PRG_ROM .. (ADDR_PRG_ROM + program.len())].copy_from_slice(&program[..]);
-        self.program_counter = ADDR_PRG_ROM as u16;
-
-        let ref opcodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES_MAP;
-        let mut i = 0;
-        while i < program.len() {
-            let instr = program[i];
-            let opcode = opcodes[&instr];
-            let arg_len = (opcode.len-1) as usize;
-
-            print!("0x{addr:x} | {name} (${code:x})", addr=ADDR_PRG_ROM+i, name=opcode.instruction, code=instr);
-
-            match arg_len {
-                0 => {},
-                1 => print!(": [{data:x}]", data=program[i+1]),
-                2 => {
-                    let low = program[i+1];
-                    let high = program[i+2];
-                    let args = ((high as u16) << 8) | (low as u16);
-                    print!(": [{data:x}]", data=args)
-                }
-                _ => print!("???"),
-            }
-
-            println!("");
-
-            i += arg_len+1;
-        }
+    pub fn load(&mut self, rom: Rom) {
+        println!("Loading Rom:");
+        rom.print_rom();
+        self.bus.load_rom(rom);
     }
 
-    pub fn load_and_run(&mut self, program: Vec<u8>) {
-        self.load(program);
+    pub fn load_and_run(&mut self, rom: Rom) {
+        self.load(rom);
+        self.program_counter = self.mem_read_u16(0xFFFC);
         self.run();
+    }
+
+    pub fn build_rom_load_and_run(&mut self, program: Vec<u8>) {
+        let rom = Rom::build_rom(program);
+        self.load_and_run(rom);
     }
 
     pub fn run(&mut self) {
@@ -913,7 +884,7 @@ mod test {
 
     fn test_run(bytes: Vec<u8>) -> CPU {
         let mut cpu = CPU::new();
-        cpu.load_and_run(bytes);
+        cpu.build_rom_load_and_run(bytes);
         return cpu;
     }
 
@@ -946,7 +917,7 @@ mod test {
     fn test_bcc_pass() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Carry, false);
-        cpu.load_and_run(vec![0x90, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x90, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0x01);
     }
     
@@ -954,7 +925,7 @@ mod test {
     fn test_bcc_fail() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Carry, true);
-        cpu.load_and_run(vec![0x90, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x90, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0xFF);
     }
 
@@ -962,7 +933,7 @@ mod test {
     fn test_bcs_pass() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Carry, true);
-        cpu.load_and_run(vec![0xB0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xB0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0x01);
     }
 
@@ -970,7 +941,7 @@ mod test {
     fn test_bcs_fail() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Carry, false);
-        cpu.load_and_run(vec![0xB0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xB0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0xFF);
     }
 
@@ -978,7 +949,7 @@ mod test {
     fn test_beq_pass() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Zero, true);
-        cpu.load_and_run(vec![0xF0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xF0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0x01);
     }
 
@@ -986,7 +957,7 @@ mod test {
     fn test_beq_fail() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Zero, false);
-        cpu.load_and_run(vec![0xF0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xF0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0xFF);
     }
 
@@ -994,7 +965,7 @@ mod test {
     fn test_bne_pass() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Zero, false);
-        cpu.load_and_run(vec![0xD0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xD0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0x01);
     }
 
@@ -1002,7 +973,7 @@ mod test {
     fn test_bne_fail() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Zero, true);
-        cpu.load_and_run(vec![0xD0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xD0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0xFF);
     }
 
@@ -1010,7 +981,7 @@ mod test {
     fn test_bit_is_zero() {
         let mut cpu = CPU::new();
         cpu.mem_write(0x0000, 0x00);
-        cpu.load_and_run(vec![0xA9, 0x04, 0x24, 0x00, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xA9, 0x04, 0x24, 0x00, 0x00]);
         assert!(cpu.get_flag(CPUFlags::Zero));
     }
 
@@ -1018,7 +989,7 @@ mod test {
     fn test_bit_mem_flags_set() {
         let mut cpu = CPU::new();
         cpu.mem_write(0x0000, 0xFF);
-        cpu.load_and_run(vec![0xA9, 0x00, 0x24, 0x00, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xA9, 0x00, 0x24, 0x00, 0x00]);
         assert!(cpu.get_flag(CPUFlags::Overflow));
         assert!(cpu.get_flag(CPUFlags::Negative));
     }
@@ -1027,7 +998,7 @@ mod test {
     fn test_bit_mem_flags_not_set() {
         let mut cpu = CPU::new();
         cpu.mem_write(0x0000, 0x00);
-        cpu.load_and_run(vec![0xA9, 0x00, 0x24, 0x00, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xA9, 0x00, 0x24, 0x00, 0x00]);
         assert!(!cpu.get_flag(CPUFlags::Overflow));
         assert!(!cpu.get_flag(CPUFlags::Negative));
     }
@@ -1036,7 +1007,7 @@ mod test {
     fn test_bmi_pass() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Negative, true);
-        cpu.load_and_run(vec![0x30, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x30, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0x01);
     }
 
@@ -1044,7 +1015,7 @@ mod test {
     fn test_bmi_fail() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Negative, false);
-        cpu.load_and_run(vec![0x30, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x30, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0xFF);
     }
 
@@ -1052,7 +1023,7 @@ mod test {
     fn test_bpl_pass() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Negative, false);
-        cpu.load_and_run(vec![0x10, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x10, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0x01);
     }
 
@@ -1060,7 +1031,7 @@ mod test {
     fn test_bpl_fail() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Negative, true);
-        cpu.load_and_run(vec![0x10, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x10, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0xFF);
     }
 
@@ -1068,7 +1039,7 @@ mod test {
     fn test_bvc_pass() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Overflow, false);
-        cpu.load_and_run(vec![0x50, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x50, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0x01);
     }
 
@@ -1076,7 +1047,7 @@ mod test {
     fn test_bvc_fail() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Overflow, true);
-        cpu.load_and_run(vec![0x50, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x50, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0xFF);
     }
 
@@ -1084,7 +1055,7 @@ mod test {
     fn test_bvs_pass() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Overflow, true);
-        cpu.load_and_run(vec![0x70, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x70, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0x01);
     }
 
@@ -1092,7 +1063,7 @@ mod test {
     fn test_bvs_fail() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Overflow, false);
-        cpu.load_and_run(vec![0x70, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x70, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00]);
         assert!(cpu.register_a == 0xFF);
     }
 
@@ -1100,7 +1071,7 @@ mod test {
     fn test_clc() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Carry, true);
-        cpu.load_and_run(vec![0x18, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x18, 0x00]);
         assert!(!cpu.get_flag(CPUFlags::Carry));
     }
 
@@ -1108,7 +1079,7 @@ mod test {
     fn test_sec() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Carry, false);
-        cpu.load_and_run(vec![0x38, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x38, 0x00]);
         assert!(cpu.get_flag(CPUFlags::Carry));
     }
 
@@ -1116,7 +1087,7 @@ mod test {
     fn test_cld() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::DecimalMode, true);
-        cpu.load_and_run(vec![0xD8, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xD8, 0x00]);
         assert!(!cpu.get_flag(CPUFlags::DecimalMode));
     }
 
@@ -1124,7 +1095,7 @@ mod test {
     fn test_sed() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::DecimalMode, false);
-        cpu.load_and_run(vec![0xF8, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xF8, 0x00]);
         assert!(cpu.get_flag(CPUFlags::DecimalMode));
     }
 
@@ -1132,7 +1103,7 @@ mod test {
     fn test_cli() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::InterruptDisable, true);
-        cpu.load_and_run(vec![0x58, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x58, 0x00]);
         assert!(!cpu.get_flag(CPUFlags::InterruptDisable));
     }
 
@@ -1140,7 +1111,7 @@ mod test {
     fn test_sei() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::InterruptDisable, false);
-        cpu.load_and_run(vec![0x78, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x78, 0x00]);
         assert!(cpu.get_flag(CPUFlags::InterruptDisable));
     }
 
@@ -1148,7 +1119,7 @@ mod test {
     fn test_clv() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Overflow, true);
-        cpu.load_and_run(vec![0xB8, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xB8, 0x00]);
         assert!(!cpu.get_flag(CPUFlags::Overflow));
     }
 
@@ -1238,7 +1209,7 @@ mod test {
         let mut cpu = CPU::new();
         const ADDR: u16 = 0x0000;
         cpu.mem_write(ADDR, 0x02);
-        cpu.load_and_run(vec![0xC6, 0x00, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xC6, 0x00, 0x00]);
         assert!(cpu.mem_read(ADDR)==0x01);
     }
 
@@ -1247,7 +1218,7 @@ mod test {
         let mut cpu = CPU::new();
         const ADDR: u16 = 0x0000;
         cpu.mem_write(ADDR, 0x00);
-        cpu.load_and_run(vec![0xE6, 0x00, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xE6, 0x00, 0x00]);
         assert!(cpu.mem_read(ADDR)==0x01);
     }
 
@@ -1295,7 +1266,7 @@ mod test {
 
         cpu.mem_write_u16(ADDR, ADDR_2);
         cpu.mem_write_u16(ADDR_2, 0x00);
-        cpu.load_and_run(vec![0x6C, 0x00, 0x00, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x6C, 0x00, 0x00, 0x00]);
 
         assert!(cpu.program_counter == (ADDR_2+1)); // +1 because of the break execute
     }
@@ -1311,7 +1282,7 @@ mod test {
 
         cpu.mem_write(ADDR_LOW, ADDR_2_LOW);
         cpu.mem_write(ADDR_HIGH, ADDR_2_HIGH);
-        cpu.load_and_run(vec![0x6C, 0xFF, 0x00, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x6C, 0xFF, 0x00, 0x00]);
 
         assert!(cpu.program_counter == (ADDR_2_RESULT+1)); // +1 because of the break execute
     }
@@ -1371,7 +1342,7 @@ mod test {
     fn test_php_0x02() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Zero, true);
-        cpu.load_and_run(vec![0x08, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x08, 0x00]);
         let stack_value = cpu.pop_stack();
         assert!(stack_value == 0x02);
     }
@@ -1380,7 +1351,7 @@ mod test {
     fn test_pla_0x01() {
         let mut cpu = CPU::new();
         cpu.push_stack(0x01);
-        cpu.load_and_run(vec![0x68, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x68, 0x00]);
         assert!(cpu.register_a == 0x01);
     }
 
@@ -1388,7 +1359,7 @@ mod test {
     fn test_plp_0x01() {
         let mut cpu = CPU::new();
         cpu.push_stack(0x01);
-        cpu.load_and_run(vec![0x28, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x28, 0x00]);
         assert!(cpu.status == 0x01);
     }
 
@@ -1396,7 +1367,7 @@ mod test {
     fn test_rol_0x80_with_carry_to_0x01() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Carry, true);
-        cpu.load_and_run(vec![0xA9, 0x80, 0x2A, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xA9, 0x80, 0x2A, 0x00]);
         assert!(cpu.register_a == 0x01);
         assert!(cpu.get_flag(CPUFlags::Carry));
     }
@@ -1405,7 +1376,7 @@ mod test {
     fn test_rol_0x80_no_carry_to_0x00() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Carry, false);
-        cpu.load_and_run(vec![0xA9, 0x80, 0x2A, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xA9, 0x80, 0x2A, 0x00]);
         assert!(cpu.register_a == 0x00);
         assert!(cpu.get_flag(CPUFlags::Carry));
     }
@@ -1414,7 +1385,7 @@ mod test {
     fn test_ror_0x00_with_carry_to_0x80() {
         let mut cpu = CPU::new();
         cpu.set_flag(CPUFlags::Carry, true);
-        cpu.load_and_run(vec![0xA9, 0x00, 0x6A, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xA9, 0x00, 0x6A, 0x00]);
         assert!(cpu.register_a == 0x80);
         assert!(!cpu.get_flag(CPUFlags::Carry));
     }
@@ -1424,7 +1395,7 @@ mod test {
         let mut cpu = CPU::new();
         cpu.push_stack_u16(0x0602);
         cpu.push_stack(0x01);
-        cpu.load_and_run(vec![0x40, 0x00, 0xEA, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x40, 0x00, 0xEA, 0x00]);
         assert!(cpu.status == 0x01);
         assert!(cpu.program_counter == 0x0604);
     }
@@ -1433,7 +1404,7 @@ mod test {
     fn test_rts_0x0604() {
         let mut cpu = CPU::new();
         cpu.push_stack_u16(0x0602);
-        cpu.load_and_run(vec![0x60, 0x00, 0xEA, 0x00]);
+        cpu.build_rom_load_and_run(vec![0x60, 0x00, 0xEA, 0x00]);
         assert!(cpu.program_counter == 0x0604);
     }
 
@@ -1495,7 +1466,7 @@ mod test {
     fn test_tsx_0x01() {
         let mut cpu = CPU::new();
         cpu.push_stack(0x01);
-        cpu.load_and_run(vec![0xBA, 0x00]);
+        cpu.build_rom_load_and_run(vec![0xBA, 0x00]);
         assert!(cpu.register_x == ((ADDR_STACK_TOP - ADDR_STACK_BOTTOM - 1) as u8));
     }
 
@@ -1503,7 +1474,7 @@ mod test {
     fn test_txs() {
         let mut cpu = CPU::new();
         const TEST_VALUE: u8 = (ADDR_STACK_TOP - ADDR_STACK_BOTTOM - 1) as u8;
-        cpu.load_and_run(vec![0xA2, TEST_VALUE, 0x9A]);
+        cpu.build_rom_load_and_run(vec![0xA2, TEST_VALUE, 0x9A]);
         assert!(cpu.stack_pointer == TEST_VALUE);
     }
 }

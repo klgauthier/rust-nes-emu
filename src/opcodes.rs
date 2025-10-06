@@ -14,7 +14,7 @@ pub struct OpCode
 }
 
 impl OpCode {
-    fn new(code: u8, instruction: &'static str, len: u8, cycles: u8, mode: AddressingMode) -> Self
+    pub fn new(code: u8, instruction: &'static str, len: u8, cycles: u8, mode: AddressingMode) -> Self
     {
         OpCode {
             code: code,

@@ -115,6 +115,7 @@ dependencies = [
 name = "rust-nes-emu"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "lazy_static",
  "rand",
  "sdl2",
