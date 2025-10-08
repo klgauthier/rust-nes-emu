@@ -72,7 +72,7 @@ struct FileLog {
 
 impl LogWrite for FileLog {
     fn log_write(&mut self, string: &str) {
-        self.buf_writer.write(string.as_bytes()).expect("Error logging to file.");
+        self.buf_writer.write(format!("{}\n", string).as_bytes()).expect("Error logging to file.");
     }
 }
 
