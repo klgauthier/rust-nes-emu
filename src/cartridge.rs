@@ -59,7 +59,7 @@ impl Rom {
         let mut in_0_block = false;
         let mut first_0_in_block = true;
 
-        let logger = Logging::new(true, false);
+        let mut logger = Logging::new(true, false);
         
         let mut i: usize = 0;
         while i < self.prg_rom.len() {
@@ -72,7 +72,7 @@ impl Rom {
                 (0x0, false, true) => {
                     first_0_in_block = false;
 
-                    self.print_instr(&logger, &opcode, i);
+                    self.print_instr(&mut logger, &opcode, i);
                 }
 
                 // start 0 block
@@ -89,12 +89,12 @@ impl Rom {
                     in_0_block = false;
                     first_0_in_block = true;
 
-                    self.print_instr(&logger, &opcode, i);
+                    self.print_instr(&mut logger, &opcode, i);
                 }
 
                 (0x1..=0xFF, false, _) => {
                     first_0_in_block = true;
-                    self.print_instr(&logger, &opcode, i)
+                    self.print_instr(&mut logger, &opcode, i)
                 }
             }
 
@@ -102,7 +102,7 @@ impl Rom {
         }
     }
 
-    fn print_instr(&self, logger: &Logging, opcode: &OpCode, index: usize) {
+    fn print_instr(&self, logger: &mut Logging, opcode: &OpCode, index: usize) {
         const ADDR_PRG_ROM : usize = 0x8000;
 
         let arg_len = (opcode.len-1) as usize;

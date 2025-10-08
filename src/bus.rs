@@ -66,13 +66,14 @@ impl Memory for Bus {
     fn mem_read(&self, addr: u16) -> u8 {
         match addr {
             RAM ..= RAM_MIRROR_END => {
+                //println!("Bus::mem_read -- reading from ram at addr: {:X}", addr);
                 let mirror_down_addr = addr & 0b00000111_11111111;
                 return self.cpu_vram[mirror_down_addr as usize];
             }
 
             PPU_REGISTERS ..= PPU_REGISTERS_MIRROR_END => {
                 let _mirror_down_addr = addr & 0b00100000_00000111;
-                todo!("PPU is not supported yet.")
+                todo!("PPU is not supported yet. {:X}", addr)
             }
 
             ROM ..= 0xFFFF => {
@@ -80,7 +81,7 @@ impl Memory for Bus {
             }
 
             _=> {
-                println!("Bus::mem_read -- ignoring memory access at {:x}", addr);
+                println!("Bus::mem_read -- ignoring memory access at {:X}", addr);
                 return 0;
             }
         }
@@ -89,8 +90,11 @@ impl Memory for Bus {
     fn mem_write(&mut self, addr: u16, data: u8) {
         match addr {
             RAM ..= RAM_MIRROR_END => {
-                let mirror_down_addr = addr & 0b00000000_01111111;
+                //println!("Bus::mem_write -- writing {:X} to ram at addr: {:X}", data, addr);
+                let mirror_down_addr = addr & 0b00000111_11111111;
                 self.cpu_vram[mirror_down_addr as usize] = data;
+                //let value = self.mem_read(addr);
+                //println!("Bus::mem_write -- reading {:X} to ram at addr: {:X}", data, addr);
             }
 
             PPU_REGISTERS ..= PPU_REGISTERS_MIRROR_END => {

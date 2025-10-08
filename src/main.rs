@@ -45,13 +45,12 @@ fn main() {
     let mut cpu = CPU::new();
     let rom_file_data = load_binary_from_file(Path::new("roms/snake.nes"));
     let rom = Rom::new(rom_file_data);
-    cpu.load_and_run(rom.expect("Rom failed to build."));
+    cpu.load(rom.expect("Rom failed to build."), Some(0xFFFC));
 
     let mut screen_state = [0 as u8; 32*3*32];
     let mut rng = rand::thread_rng();
 
     cpu.run_with_callback(move |cpu| {
-
 
         handle_user_input(cpu, &mut event_pump);
         cpu.mem_write(0xFE, rng.gen_range(1, 16));
