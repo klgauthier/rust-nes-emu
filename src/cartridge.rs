@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::logging::Logging;
+use crate::logging::{Arguments, FileLog, Logger, TerminalLog};
 use crate::rom_format::format_ines1::INes1;
 use crate::opcodes::{self, OpCode};
 
@@ -59,7 +59,8 @@ impl Rom {
         let mut in_0_block = false;
         let mut first_0_in_block = true;
 
-        let mut logger = Logging::new(true, false);
+        let mut file_log = FileLog::new().expect("File failed to open.");
+        let mut term_log = TerminalLog::new();
         
         let mut i: usize = 0;
         while i < self.prg_rom.len() {
@@ -72,7 +73,8 @@ impl Rom {
                 (0x0, false, true) => {
                     first_0_in_block = false;
 
-                    self.print_instr(&mut logger, &opcode, i);
+                    self.print_instr(&mut file_log, &opcode, i);
+                    self.print_instr(&mut term_log, &opcode, i);
                 }
 
                 // start 0 block
@@ -89,12 +91,15 @@ impl Rom {
                     in_0_block = false;
                     first_0_in_block = true;
 
-                    self.print_instr(&mut logger, &opcode, i);
+                    self.print_instr(&mut file_log, &opcode, i);
+                    self.print_instr(&mut term_log, &opcode, i);
                 }
 
                 (0x1..=0xFF, false, _) => {
                     first_0_in_block = true;
-                    self.print_instr(&mut logger, &opcode, i)
+
+                    self.print_instr(&mut file_log, &opcode, i);
+                    self.print_instr(&mut term_log, &opcode, i);
                 }
             }
 
@@ -102,7 +107,7 @@ impl Rom {
         }
     }
 
-    fn print_instr(&self, logger: &mut Logging, opcode: &OpCode, index: usize) {
+    fn print_instr<T: Logger>(&self, logger: &mut T, opcode: &OpCode, index: usize) {
         const ADDR_PRG_ROM : usize = 0x8000;
 
         let arg_len = (opcode.len-1) as usize;
@@ -110,7 +115,14 @@ impl Rom {
         let arg1 = if arg_len >= 1 { Some(self.prg_rom[index+1])} else {None};
         let arg2 = if arg_len == 2 { Some(self.prg_rom[index+2])} else {None};
 
-        logger.log_opcode((ADDR_PRG_ROM+index) as u16, opcode, arg1, arg2);
+        let args = match (arg1, arg2) {
+            (None, None) => Arguments::None,
+            (None, Some(_)) => unreachable!(),
+            (Some(arg), None) => Arguments::One(arg),
+            (Some(arg1), Some(arg2)) => Arguments::Two(Arguments::combine_args(arg1, arg2)),
+        };
+
+        logger.log_opcode((ADDR_PRG_ROM+index) as u16, opcode, &args);
     }
 
     fn get_opcode(&self, instr: u8) -> OpCode {

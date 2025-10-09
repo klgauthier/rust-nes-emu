@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use crate::cartridge::Rom;
-use crate::logging::{ANSIColor, Arguments, Logging};
+use crate::logging::{ANSIColor, Arguments, FileLog, LogWrite, Logger, TerminalLog};
 use crate::{bus, opcodes};
 use crate::bus::{Bus, Memory};
 
@@ -115,8 +115,10 @@ impl CPU
     {
         let ref opcodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES_MAP;
         
-        let mut logger = Logging::new(false, true);
-        logger.log_line(logger.wrap_color("\n--- Starting Run ---\n".to_string(), ANSIColor::Green));
+        let mut term_log = TerminalLog::new();
+        term_log.log_write(&TerminalLog::wrap_color("\n--- Starting Run ---\n".to_string(), ANSIColor::Green));
+
+        let mut file_log = FileLog::new().expect("Failed to open file.");
 
         loop {
             let opcode = self.mem_read(self.program_counter);
@@ -130,9 +132,8 @@ impl CPU
                 2 => Arguments::Two(self.mem_read_u16(self.program_counter)),
                 _ => panic!("Unsupported length for opcode: {:X}", opcode),
             };
-            logger.log_running_opcode(&self, opcode_info, args);
-
-            //println!("CPU::run -- Addr:{addr:x} | {opcode}: {mode:?} ${hex:x}", addr = self.program_counter-1, opcode = opcode_info.instruction, mode = opcode_info.mode, hex = opcode);
+            //term_log.log_opcode_running(opcode_info, &args, &self);
+            file_log.log_opcode_running(opcode_info, &args, &self);
 
             match opcode_info.instruction {
                 /* INTERRUPTS */
