@@ -293,6 +293,143 @@ lazy_static!
 
         /* TYA - Transfer Y to Accumulator */
         OpCode::new(0x98, "TYA", 1, 2, AddressingMode::NoneAddressing),
+
+        /* ----ILLEGAL OPCODES---- */
+        /* AAC - AND with Accumulator */
+        OpCode::new(0x0B, "AAC", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0x2B, "AAC", 2, 2, AddressingMode::Immediate),
+
+        /* AAX - AND X with Accumulator */
+        OpCode::new(0x87, "AAX", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x97, "AAX", 2, 4, AddressingMode::ZeroPageY),
+        OpCode::new(0x83, "AAX", 2, 6, AddressingMode::IndirectX),
+        OpCode::new(0x8F, "AAX", 3, 4, AddressingMode::Absolute),
+
+        /* ARR - AND with Accumulator, then rotate right */
+        OpCode::new(0x6B, "ARR", 2, 2, AddressingMode::Immediate),
+
+        /* ASR - AND with Accumulator, then shift right */
+        OpCode::new(0x4B, "ASR", 2, 2, AddressingMode::Immediate),
+
+        /* ATX - AND with Accumulator, then transfer to X */
+        OpCode::new(0xAB, "ATX", 2, 2, AddressingMode::Immediate),
+
+        /* AXA - AND X Register with Accumulator, then AND with 7 */ 
+        OpCode::new(0x9F, "AXA", 3, 5, AddressingMode::AbsoluteY),
+        OpCode::new(0x93, "AXA", 2, 6, AddressingMode::IndirectY),
+
+        /* AXS - AND X Register with Accumulator, then subtract */ 
+        OpCode::new(0xCB, "AXS", 2, 2, AddressingMode::Immediate),
+
+        /* DOP - Double NOP */ 
+        OpCode::new(0x04, "DOP", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x14, "DOP", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0x34, "DOP", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0x44, "DOP", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x54, "DOP", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0x64, "DOP", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x74, "DOP", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0x80, "DOP", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0x82, "DOP", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0x89, "DOP", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0xC2, "DOP", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0xD4, "DOP", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0xE2, "DOP", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0xF4, "DOP", 2, 4, AddressingMode::ZeroPageX),
+
+        /* ISC - Increment Memory, then subtract */ 
+        OpCode::new(0xE7, "ISC", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0xF7, "ISC", 2, 6, AddressingMode::ZeroPageX),
+        OpCode::new(0xEF, "ISC", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0xFF, "ISC", 3, 7, AddressingMode::AbsoluteX),
+        OpCode::new(0xFB, "ISC", 3, 7, AddressingMode::AbsoluteY),
+        OpCode::new(0xE3, "ISC", 2, 8, AddressingMode::IndirectX),
+        OpCode::new(0xF3, "ISC", 2, 8, AddressingMode::IndirectY),
+
+        /* KIL - Stop program counter */ 
+        OpCode::new(0x02, "KIL", 1, 0, AddressingMode::NoneAddressing),
+        OpCode::new(0x12, "KIL", 1, 0, AddressingMode::NoneAddressing),
+        OpCode::new(0x22, "KIL", 1, 0, AddressingMode::NoneAddressing),
+        OpCode::new(0x32, "KIL", 1, 0, AddressingMode::NoneAddressing),
+        OpCode::new(0x42, "KIL", 1, 0, AddressingMode::NoneAddressing),
+        OpCode::new(0x52, "KIL", 1, 0, AddressingMode::NoneAddressing),
+        OpCode::new(0x62, "KIL", 1, 0, AddressingMode::NoneAddressing),
+        OpCode::new(0x72, "KIL", 1, 0, AddressingMode::NoneAddressing),
+        OpCode::new(0x92, "KIL", 1, 0, AddressingMode::NoneAddressing),
+        OpCode::new(0xB2, "KIL", 1, 0, AddressingMode::NoneAddressing),
+        OpCode::new(0xD2, "KIL", 1, 0, AddressingMode::NoneAddressing),
+        OpCode::new(0xF2, "KIL", 1, 0, AddressingMode::NoneAddressing),
+
+        /* LAR - AND Memory and Stack Pointer, transfer to A, X, Stack Pointer */ 
+        OpCode::new(0xBB, "LAR", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteY),
+
+        /* LAX - Load Acc and X Register */ 
+        OpCode::new(0xA7, "LAX", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0xB7, "LAX", 2, 4, AddressingMode::ZeroPageY),
+        OpCode::new(0xAF, "LAX", 3, 4, AddressingMode::Absolute),
+        OpCode::new(0xBF, "LAX", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteY),
+        OpCode::new(0xA3, "LAX", 2, 6, AddressingMode::IndirectX),
+        OpCode::new(0xB3, "LAX", 2, 5 /* +1 if page crossed */, AddressingMode::IndirectY),
+
+        /* NOP - No operation */ 
+        OpCode::new(0x1A, "NOP", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0x3A, "NOP", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0x5A, "NOP", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0x7A, "NOP", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0xDA, "NOP", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0xFA, "NOP", 1, 2, AddressingMode::NoneAddressing),
+
+        /* RLA - Rotate left, then add acc */ 
+        OpCode::new(0x27, "RLA", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0x37, "RLA", 2, 6, AddressingMode::ZeroPageX),
+        OpCode::new(0x2F, "RLA", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0x3F, "RLA", 3, 7, AddressingMode::AbsoluteX),
+        OpCode::new(0x3B, "RLA", 3, 7, AddressingMode::AbsoluteY),
+        OpCode::new(0x23, "RLA", 2, 8, AddressingMode::IndirectX),
+        OpCode::new(0x33, "RLA", 2, 8, AddressingMode::IndirectY),
+
+        /* RRA - Rotate right, then add acc */ 
+        OpCode::new(0x67, "RRA", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0x77, "RRA", 2, 6, AddressingMode::ZeroPageX),
+        OpCode::new(0x6F, "RRA", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0x7F, "RRA", 3, 7, AddressingMode::AbsoluteX),
+        OpCode::new(0x7B, "RRA", 3, 7, AddressingMode::AbsoluteY),
+        OpCode::new(0x63, "RRA", 2, 8, AddressingMode::IndirectX),
+        OpCode::new(0x73, "RRA", 2, 8, AddressingMode::IndirectY),
+
+        /* SBC - Subtract with Carry */ 
+        OpCode::new(0xEB, "SBC", 2, 2, AddressingMode::Immediate),
+
+        /* SRE - Shift Right, then EOR */ 
+        OpCode::new(0x47, "SRE", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0x57, "SRE", 2, 6, AddressingMode::ZeroPageX),
+        OpCode::new(0x4F, "SRE", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0x5F, "SRE", 3, 7, AddressingMode::AbsoluteX),
+        OpCode::new(0x5B, "SRE", 3, 7, AddressingMode::AbsoluteY),
+        OpCode::new(0x43, "SRE", 2, 8, AddressingMode::IndirectX),
+        OpCode::new(0x53, "SRE", 2, 8, AddressingMode::IndirectY),
+
+        /* SXA - AND X with high byte */ 
+        OpCode::new(0x9E, "SXA", 3, 5, AddressingMode::AbsoluteY),
+
+        /* SYA - AND Y with high byte */
+        OpCode::new(0x9C, "SYA", 3, 5, AddressingMode::AbsoluteX),
+
+        /* TOP - Triple NOP */ 
+        OpCode::new(0x0C, "TOP", 3, 4, AddressingMode::Absolute),
+        OpCode::new(0x1C, "TOP", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteX),
+        OpCode::new(0x3C, "TOP", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteX),
+        OpCode::new(0x5C, "TOP", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteX),
+        OpCode::new(0x7C, "TOP", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteX),
+        OpCode::new(0xDC, "TOP", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteX),
+        OpCode::new(0xFC, "TOP", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteX),
+
+        /* XAA - ??? */ 
+        OpCode::new(0x8B, "XAA", 2, 2, AddressingMode::Immediate),
+
+        /* XAS - AND X with Acc to Stack Pointer, AND Stack Pointer and high byte to Memory */ 
+        OpCode::new(0x9B, "XAS", 3, 5, AddressingMode::AbsoluteY),
+        
     ];
 
     pub static ref OPCODES_MAP: HashMap<u8, &'static OpCode> = {
