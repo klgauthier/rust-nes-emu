@@ -424,7 +424,7 @@ lazy_static!
         OpCode::new(0xDC, "TOP", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteX),
         OpCode::new(0xFC, "TOP", 3, 4 /* +1 if page crossed */, AddressingMode::AbsoluteX),
 
-        /* XAA - ??? */ 
+        /* XAA - Unstable command, we put 0xFF into Acc */ 
         OpCode::new(0x8B, "XAA", 2, 2, AddressingMode::Immediate),
 
         /* XAS - AND X with Acc to Stack Pointer, AND Stack Pointer and high byte to Memory */ 
