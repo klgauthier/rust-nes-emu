@@ -294,7 +294,10 @@ lazy_static!
         /* TYA - Transfer Y to Accumulator */
         OpCode::new(0x98, "TYA", 1, 2, AddressingMode::NoneAddressing),
 
+        /* ----------------------- */ 
         /* ----ILLEGAL OPCODES---- */
+        /* ----------------------- */
+
         /* AAC - AND with Accumulator */
         OpCode::new(0x0B, "AAC", 2, 2, AddressingMode::Immediate),
         OpCode::new(0x2B, "AAC", 2, 2, AddressingMode::Immediate),

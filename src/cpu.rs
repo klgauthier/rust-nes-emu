@@ -70,6 +70,101 @@ impl Memory for CPU
     }
 }
 
+trait IllegalOperations {
+    fn aac(&mut self, mode: &AddressingMode);
+    fn aax(&mut self, mode: &AddressingMode);
+    fn arr(&mut self, mode: &AddressingMode);
+    fn asr(&mut self, mode: &AddressingMode);
+    fn atx(&mut self, mode: &AddressingMode);
+    fn axa(&mut self, mode: &AddressingMode);
+    fn axs(&mut self, mode: &AddressingMode);
+    fn isc(&mut self, mode: &AddressingMode);
+    fn kil(&mut self);
+    fn lar(&mut self, mode: &AddressingMode);
+    fn lax(&mut self, mode: &AddressingMode);
+    fn rla(&mut self, mode: &AddressingMode);
+    fn rra(&mut self, mode: &AddressingMode);
+    fn sre(&mut self, mode: &AddressingMode);
+    fn sxa(&mut self, mode: &AddressingMode);
+    fn sya(&mut self, mode: &AddressingMode);
+    fn xaa(&mut self, mode: &AddressingMode);
+    fn xas(&mut self, mode: &AddressingMode);
+}
+
+impl IllegalOperations for CPU {
+    fn aac(&mut self, mode: &AddressingMode) {
+        let value = self.get_operand_address(mode);
+        self.register_a = self.register_a & (value as u8);
+    }
+    fn aax(&mut self, mode: &AddressingMode) {
+       todo!();
+    }
+
+    fn arr(&mut self, mode: &AddressingMode) {
+       todo!();
+    }
+
+    fn asr(&mut self, mode: &AddressingMode) {
+       todo!();
+    }
+
+    fn atx(&mut self, mode: &AddressingMode) {
+       todo!();
+    }
+
+    fn axa(&mut self, mode: &AddressingMode) {
+       todo!();
+    }
+
+    fn axs(&mut self, mode: &AddressingMode) {
+       todo!();
+    }
+
+    fn isc(&mut self, mode: &AddressingMode){
+       todo!();
+    }
+
+    fn kil(&mut self) {
+       todo!();
+    }
+
+    fn lar(&mut self, mode: &AddressingMode) {
+       todo!();
+    }
+
+    fn lax(&mut self, mode: &AddressingMode) {
+       todo!();
+    }
+
+    fn rla(&mut self, mode: &AddressingMode) {
+       todo!();
+    }
+
+    fn rra(&mut self, mode: &AddressingMode) {
+       todo!();
+    }
+
+    fn sre(&mut self, mode: &AddressingMode) {
+       todo!();
+    }
+
+    fn sxa(&mut self, mode: &AddressingMode) {
+       todo!();
+    }
+
+    fn sya(&mut self, mode: &AddressingMode) {
+       todo!();
+    }
+
+    fn xaa(&mut self, mode: &AddressingMode) {
+       todo!();
+    }
+
+    fn xas(&mut self, mode: &AddressingMode){
+        todo!();
+    }
+}
+
 impl CPU
 {
     pub fn new() -> Self {
@@ -386,8 +481,13 @@ impl CPU
                 "ORA" => {
                     self.ora(&opcode_info.mode);
                 }
+
+                "AAC" => {
+                    self.aac(&opcode_info.mode);
+                }
                 
                 _ => todo!(),
+
             }
 
             if starting_program_counter == self.program_counter {
