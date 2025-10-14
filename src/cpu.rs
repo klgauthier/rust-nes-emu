@@ -482,10 +482,89 @@ impl CPU
                     self.ora(&opcode_info.mode);
                 }
 
+                /* ---------------------
+                 * ILLEGAL OPERATIONS 
+                 * ---------------------
+                 */
                 "AAC" => {
                     self.aac(&opcode_info.mode);
                 }
                 
+                "AAX" => {
+                    self.aax(&opcode_info.mode);
+                }
+
+                "ARR" => {
+                    self.arr(&opcode_info.mode);
+                }
+
+                "ASR" => {
+                    self.asr(&opcode_info.mode);
+                }
+
+                "ATX" => {
+                    self.atx(&opcode_info.mode);
+                }
+
+                "AXA" => {
+                    self.axa(&opcode_info.mode);
+                }
+
+                "AXS" => {
+                    self.axs(&opcode_info.mode);
+                }
+
+                "DOP" => {
+                    self.nop();
+                }
+
+                "ISC" => {
+                    self.isc(&opcode_info.mode);
+                }
+
+                "KIL" => {
+                    self.kil();
+                }
+
+                "LAR" => {
+                    self.lar(&opcode_info.mode);
+                }
+
+                "LAX" => {
+                    self.lax(&opcode_info.mode);
+                }
+
+                "RLA" => {
+                    self.rla(&opcode_info.mode);
+                }
+                
+                "RRA" => {
+                    self.rra(&opcode_info.mode);
+                }
+
+                "SRE" => {
+                    self.sre(&opcode_info.mode);
+                }
+
+                "SXA" => {
+                    self.sxa(&opcode_info.mode);
+                }
+
+                "SYA" => {
+                    self.sya(&opcode_info.mode);
+                }
+
+                "TOP" => {
+                    self.nop();
+                }
+
+                "XAA" => {
+                    self.xaa(&opcode_info.mode);
+                }
+
+                "XAS" => {
+                    self.xas(&opcode_info.mode);
+                }
                 _ => todo!(),
 
             }
