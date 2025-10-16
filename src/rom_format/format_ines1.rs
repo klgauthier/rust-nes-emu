@@ -66,33 +66,33 @@ impl INes1 {
         let chr_rom_start = prg_rom_start + Self::get_prg_rom_size(*prg_rom_bank_count);
         let chr_rom_end = chr_rom_start + Self::get_chr_rom_size(*chr_rom_bank_count);
 
-        return Ok(INes1 {
+        Ok(INes1 {
             id: [id[0], id[1], id[2], id[3]],
             prg_rom_bank_count: *prg_rom_bank_count,
             prg_ram_bank_count: *prg_ram_bank_count,
             chr_rom_bank_count: *chr_rom_bank_count,
-            mapper_type: mapper_type,
-            mirroring_type: mirroring_type,
-            has_battery_backed_ram: has_battery_backed_ram,
-            trainer_data: trainer_data,
+            mapper_type,
+            mirroring_type,
+            has_battery_backed_ram,
+            trainer_data,
             prg_rom_data: raw[prg_rom_start..chr_rom_start].to_vec(),
             chr_rom_data: raw[chr_rom_start..chr_rom_end].to_vec(),
-        });
+        })
     }
 
     pub fn get_prg_rom_size(prg_rom_bank_count: u8) -> usize {
-        return (prg_rom_bank_count as usize) * 16 * 1024;
+        (prg_rom_bank_count as usize) * 16 * 1024
     }
 
     pub fn get_chr_rom_size(chr_rom_bank_count: u8) -> usize {
-        return (chr_rom_bank_count as usize) * 8 * 1024;
+        (chr_rom_bank_count as usize) * 8 * 1024
     }
 
     pub fn get_prg_ram_size(prg_ram_bank_count: u8) -> usize {
-        return (prg_ram_bank_count as usize) * 8 * 1024;
+        (prg_ram_bank_count as usize) * 8 * 1024
     }
 
-    pub fn is_correct_file_type(raw: &Vec<u8>) -> bool {
+    pub fn is_correct_file_type(raw: &[u8]) -> bool {
         let header = &raw[0..=16];
     
         let id = &header[0..=3];
@@ -100,8 +100,8 @@ impl INes1 {
 
         if id != INES1_ID {
             println!("Failed to load due to not matching id. {} {}",
-            format!("\n\tGot:      {:x} {:x} {:x} {:x} ", id[0], id[1], id[2], id[3]),
-            format!("\n\tExpected: {:x} {:x} {:x} {:x} ", INES1_ID[0], INES1_ID[1], INES1_ID[2], INES1_ID[3]));
+            format_args!("\n\tGot:      {:x} {:x} {:x} {:x} ", id[0], id[1], id[2], id[3]),
+            format_args!("\n\tExpected: {:x} {:x} {:x} {:x} ", INES1_ID[0], INES1_ID[1], INES1_ID[2], INES1_ID[3]));
             return false;
         }
 
@@ -109,11 +109,11 @@ impl INes1 {
 
         if version != INES1_VER_CODE {
             println!("Failed to incorrect version data. {} {}",
-            format!("\n\tGot:      {:x}", version),
-            format!("\n\tExpected: {:x}", INES1_VER_CODE));
+            format_args!("\n\tGot:      {:x}", version),
+            format_args!("\n\tExpected: {:x}", INES1_VER_CODE));
             return false;
         }
 
-        return true;
+        true
     }
 }

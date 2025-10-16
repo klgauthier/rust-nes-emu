@@ -17,11 +17,11 @@ impl OpCode {
     pub fn new(code: u8, instruction: &'static str, len: u8, cycles: u8, mode: AddressingMode) -> Self
     {
         OpCode {
-            code: code,
-            instruction: instruction,
-            len: len,
-            cycles: cycles,
-            mode: mode,
+            code,
+            instruction,
+            len,
+            cycles,
+            mode,
         }
     }
 }

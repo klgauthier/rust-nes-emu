@@ -16,7 +16,8 @@ pub trait Memory
     fn mem_read_u16(&self, addr: u16) -> u16 {
         let low = self.mem_read(addr) as u16;
         let high = self.mem_read(addr+1) as u16;
-        return (high << 8) | low;
+
+        (high << 8) | low
     }
 
     fn mem_write_u16(&mut self, addr: u16, data: u16) {
@@ -32,6 +33,12 @@ pub struct Bus {
     rom: Option<Rom>,
 }
 
+impl Default for Bus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Bus {
     pub fn new() -> Self {
         Bus {
@@ -45,7 +52,7 @@ impl Bus {
     }
 
     pub fn read_prg_rom(&self, addr: u16) -> u8 {
-        return match &self.rom {
+        match &self.rom {
             None => {
                 println!("Attempting to read with no loaded Rom. Returning 0x00.");
                 0x00
@@ -53,7 +60,7 @@ impl Bus {
             Some(rom) => {
                 let mut adjusted_addr = addr - ROM;
                 if rom.prg_rom.len() == 0x4000 && adjusted_addr >= 0x4000 {
-                    adjusted_addr = adjusted_addr % 0x4000;
+                    adjusted_addr %= 0x4000;
                 }
 
                 rom.prg_rom[adjusted_addr as usize]
@@ -68,7 +75,7 @@ impl Memory for Bus {
             RAM ..= RAM_MIRROR_END => {
                 //println!("Bus::mem_read -- reading from ram at addr: {:X}", addr);
                 let mirror_down_addr = addr & 0b00000111_11111111;
-                return self.cpu_vram[mirror_down_addr as usize];
+                self.cpu_vram[mirror_down_addr as usize]
             }
 
             PPU_REGISTERS ..= PPU_REGISTERS_MIRROR_END => {
@@ -77,12 +84,12 @@ impl Memory for Bus {
             }
 
             ROM ..= 0xFFFF => {
-                return self.read_prg_rom(addr);
+                self.read_prg_rom(addr)
             }
 
             _=> {
                 println!("Bus::mem_read -- ignoring memory access at {:X}", addr);
-                return 0;
+                0
             }
         }
     }

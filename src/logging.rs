@@ -1,10 +1,10 @@
 // Copyright 2025 Kevin Gauthier. All rights reserved.
 
-use std::{fmt::Display, fs::File, io::{BufWriter, Write}, path::PathBuf};
+use std::{fs::File, io::{BufWriter, Write}, path::PathBuf};
 
 use chrono::{Datelike, Local, Timelike};
 
-use crate::{bus::Memory, cpu::{AddressingMode, CPU}, opcodes::OpCode};
+use crate::{bus::Memory, cpu::{AddressingMode, CPU}, opcodes::OpCode, arguments::Arguments};
 
 const LOG_FOLDER_PATH: &str = "logs";
 
@@ -21,53 +21,9 @@ pub enum ANSIColor {
     White   = 97
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum Arguments {
-    None,
-    One(u8),
-    Two(u16),
-}
 
-impl Arguments {
-    pub fn get_arg1(&self) -> Option<u8> {
-        match &self {
-            Arguments::None => None,
-            Arguments::One(arg) => Some(*arg),
-            Arguments::Two(arg) => Some((arg & 0xFF) as u8),
-        }
-    }
-    
-    pub fn get_arg2(&self) -> Option<u8> {
-        match &self {
-            Arguments::None => None,
-            Arguments::One(_) => None,
-            Arguments::Two(arg) => Some((arg >> 8) as u8),
-        }
-    }
 
-    pub fn to_separate_args_string(&self) -> String  {
-        match &self {
-            Arguments::None => "     ".to_string(),
-            Arguments::One(arg) => format!("{:0>2X}   ", arg),
-            Arguments::Two(_) => format!("{:0>2X} {:0>2X}", self.get_arg1().unwrap(), self.get_arg2().unwrap()),
-        }
-    }
 
-    pub fn combine_args(arg1: u8, arg2: u8) -> u16 {
-        ((arg2 as u16) << 8) | (arg1 as u16)
-    }
-}
-
-impl Display for Arguments {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self {
-            Arguments::None => write!(f, ""),
-            Arguments::One(arg) => write!(f, "{:0>2X}", arg),
-            Arguments::Two(arg) => write!(f, "{:0>4X}", arg),
-        }
-        
-    }
-}
 
 pub trait Logger {
     fn log_opcode(&mut self, address: u16, opcode: &OpCode, args: &Arguments);
@@ -80,7 +36,7 @@ pub trait Logger {
     }
 
     fn format_opcode(opcode: &OpCode) -> String {
-        format!("{}", opcode.instruction)
+        opcode.instruction.to_string()
     }
 
     fn format_args(args: &Arguments, addressing_mode: &AddressingMode) -> String {
@@ -96,7 +52,7 @@ pub trait Logger {
             AddressingMode::IndirectY => format!("(${}),Y", args),
             AddressingMode::NoneAddressing => {
                 match args {
-                    Arguments::None => format!(""),
+                    Arguments::None => String::new(),
                     Arguments::One(_) | Arguments::Two(_) => format!("${} ", args),
                 }
                 // todo!("Handle some edge case instructions");
@@ -212,7 +168,7 @@ impl FileLog {
 
 impl LogWrite for FileLog {
     fn log_write(&mut self, string: &str) {
-        self.buf_writer.write(format!("{}\n", string).as_bytes()).expect("Error logging to file.");
+        self.buf_writer.write_all(format!("{}\n", string).as_bytes()).expect("Error logging to file.");
     }
 }
 
@@ -243,6 +199,12 @@ pub struct TerminalLog {
 
 }
 
+impl Default for TerminalLog {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TerminalLog {
     pub fn new() -> TerminalLog {
         TerminalLog {
@@ -250,7 +212,7 @@ impl TerminalLog {
     }
 
     fn make_color(color: ANSIColor) -> String {
-        format!("{}{}{}", "\x1b[", format!("{:?}", color as u8), "m")
+        format!("{}{}{}", "\x1b[", format_args!("{:?}", color as u8), "m")
     }
 
     pub fn wrap_color(inner: String, color: ANSIColor) -> String {

@@ -6,6 +6,7 @@ pub mod cpu;
 pub mod logging;
 pub mod opcodes;
 pub mod rom_format;
+pub mod arguments;
 
 use bus::Memory;
 use cpu::CPU;
@@ -47,7 +48,7 @@ fn main() {
     let rom = Rom::new(rom_file_data);
     cpu.load(rom.expect("Rom failed to build."), Some(0xFFFC));
 
-    let mut screen_state = [0 as u8; 32*3*32];
+    let mut screen_state = [0_u8; 32*3*32];
     let mut rng = rand::thread_rng();
 
     cpu.run_with_callback(move |cpu| {
@@ -69,7 +70,8 @@ fn main() {
 
 fn load_binary_from_file(path: &Path) -> Vec<u8> {
     let result = fs::read(path);
-    return match result {
+    
+    match result {
         Err(e) => panic!("{}", e),
         Ok(data) => data,
     }
@@ -128,5 +130,6 @@ fn read_screen_state(cpu: &CPU, frame: &mut [u8; 32*3*32]) -> bool {
         }
         frame_idx += 3;
     }
-    return update;
+
+    update
 }
