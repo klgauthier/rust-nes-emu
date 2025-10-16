@@ -72,56 +72,58 @@ impl Memory for CPU
 }
 
 trait IllegalOperations {
-    fn aac(&mut self, mode: &AddressingMode);
-    fn aax(&mut self, mode: &AddressingMode);
-    fn arr(&mut self, mode: &AddressingMode);
-    fn asr(&mut self, mode: &AddressingMode);
-    fn atx(&mut self, mode: &AddressingMode);
-    fn axa(&mut self, mode: &AddressingMode);
-    fn axs(&mut self, mode: &AddressingMode);
-    fn isc(&mut self, mode: &AddressingMode);
+    fn aac(&mut self, args: Arguments);
+    fn aax(&mut self, args: Arguments);
+    fn arr(&mut self, args: Arguments);
+    fn asr(&mut self, args: Arguments);
+    fn atx(&mut self, args: Arguments);
+    fn axa(&mut self, args: Arguments);
+    fn axs(&mut self, args: Arguments);
+    fn isc(&mut self, args: Arguments);
     fn kil(&mut self);
-    fn lar(&mut self, mode: &AddressingMode);
-    fn lax(&mut self, mode: &AddressingMode);
-    fn rla(&mut self, mode: &AddressingMode);
-    fn rra(&mut self, mode: &AddressingMode);
-    fn sre(&mut self, mode: &AddressingMode);
-    fn sxa(&mut self, mode: &AddressingMode);
-    fn sya(&mut self, mode: &AddressingMode);
-    fn xaa(&mut self, mode: &AddressingMode);
-    fn xas(&mut self, mode: &AddressingMode);
+    fn lar(&mut self, args: Arguments);
+    fn lax(&mut self, args: Arguments);
+    fn rla(&mut self, args: Arguments);
+    fn rra(&mut self, args: Arguments);
+    fn sre(&mut self, args: Arguments);
+    fn sxa(&mut self, args: Arguments);
+    fn sya(&mut self, args: Arguments);
+    fn xaa(&mut self, args: Arguments);
+    fn xas(&mut self, args: Arguments);
 }
 
 impl IllegalOperations for CPU {
-    fn aac(&mut self, mode: &AddressingMode) {
-        let value = self.get_operand_address(mode);
-        self.register_a &= value as u8;
+    fn aac(&mut self, args: Arguments) {
+        if let Arguments::One(value) = args {
+            self.register_a &= value as u8;
+        };
     }
-    fn aax(&mut self, mode: &AddressingMode) {
+
+    fn aax(&mut self, _args: Arguments) {
        todo!();
     }
 
-    fn arr(&mut self, mode: &AddressingMode) {
+    fn arr(&mut self, _args: Arguments) {
        todo!();
     }
 
-    fn asr(&mut self, mode: &AddressingMode) {
+    fn asr(&mut self, _args: Arguments) {
        todo!();
     }
 
-    fn atx(&mut self, mode: &AddressingMode) {
+    fn atx(&mut self, _args: Arguments) {
        todo!();
     }
 
-    fn axa(&mut self, mode: &AddressingMode) {
+    fn axa(&mut self, _args: Arguments) {
        todo!();
     }
 
-    fn axs(&mut self, mode: &AddressingMode) {
+    fn axs(&mut self, _args: Arguments) {
        todo!();
     }
 
-    fn isc(&mut self, mode: &AddressingMode){
+    fn isc(&mut self, _args: Arguments){
        todo!();
     }
 
@@ -129,39 +131,39 @@ impl IllegalOperations for CPU {
        todo!();
     }
 
-    fn lar(&mut self, mode: &AddressingMode) {
+    fn lar(&mut self, _args: Arguments) {
        todo!();
     }
 
-    fn lax(&mut self, mode: &AddressingMode) {
+    fn lax(&mut self, _args: Arguments) {
        todo!();
     }
 
-    fn rla(&mut self, mode: &AddressingMode) {
+    fn rla(&mut self, _args: Arguments) {
        todo!();
     }
 
-    fn rra(&mut self, mode: &AddressingMode) {
+    fn rra(&mut self, _args: Arguments) {
        todo!();
     }
 
-    fn sre(&mut self, mode: &AddressingMode) {
+    fn sre(&mut self, _args: Arguments) {
        todo!();
     }
 
-    fn sxa(&mut self, mode: &AddressingMode) {
+    fn sxa(&mut self, _args: Arguments) {
        todo!();
     }
 
-    fn sya(&mut self, mode: &AddressingMode) {
+    fn sya(&mut self, _args: Arguments) {
        todo!();
     }
 
-    fn xaa(&mut self, mode: &AddressingMode) {
+    fn xaa(&mut self, _args: Arguments) {
        todo!();
     }
 
-    fn xas(&mut self, mode: &AddressingMode){
+    fn xas(&mut self, _args: Arguments){
         todo!();
     }
 }
@@ -491,31 +493,31 @@ impl CPU
                  * ---------------------
                  */
                 "AAC" => {
-                    self.aac(&opcode_info.mode);
+                    self.aac(args);
                 }
                 
                 "AAX" => {
-                    self.aax(&opcode_info.mode);
+                    self.aax(args);
                 }
 
                 "ARR" => {
-                    self.arr(&opcode_info.mode);
+                    self.arr(args);
                 }
 
                 "ASR" => {
-                    self.asr(&opcode_info.mode);
+                    self.asr(args);
                 }
 
                 "ATX" => {
-                    self.atx(&opcode_info.mode);
+                    self.atx(args);
                 }
 
                 "AXA" => {
-                    self.axa(&opcode_info.mode);
+                    self.axa(args);
                 }
 
                 "AXS" => {
-                    self.axs(&opcode_info.mode);
+                    self.axs(args);
                 }
 
                 "DOP" => {
@@ -523,7 +525,7 @@ impl CPU
                 }
 
                 "ISC" => {
-                    self.isc(&opcode_info.mode);
+                    self.isc(args);
                 }
 
                 "KIL" => {
@@ -531,31 +533,31 @@ impl CPU
                 }
 
                 "LAR" => {
-                    self.lar(&opcode_info.mode);
+                    self.lar(args);
                 }
 
                 "LAX" => {
-                    self.lax(&opcode_info.mode);
+                    self.lax(args);
                 }
 
                 "RLA" => {
-                    self.rla(&opcode_info.mode);
+                    self.rla(args);
                 }
                 
                 "RRA" => {
-                    self.rra(&opcode_info.mode);
+                    self.rra(args);
                 }
 
                 "SRE" => {
-                    self.sre(&opcode_info.mode);
+                    self.sre(args);
                 }
 
                 "SXA" => {
-                    self.sxa(&opcode_info.mode);
+                    self.sxa(args);
                 }
 
                 "SYA" => {
-                    self.sya(&opcode_info.mode);
+                    self.sya(args);
                 }
 
                 "TOP" => {
@@ -563,11 +565,11 @@ impl CPU
                 }
 
                 "XAA" => {
-                    self.xaa(&opcode_info.mode);
+                    self.xaa(args);
                 }
 
                 "XAS" => {
-                    self.xas(&opcode_info.mode);
+                    self.xas(args);
                 }
                 _ => todo!(),
 
