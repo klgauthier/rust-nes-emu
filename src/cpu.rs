@@ -222,7 +222,10 @@ impl Operations for CPU {
     }
 
     fn brk(&mut self, _operand: Operand) {
-
+        self.push_stack_u16(self.program_counter);
+        self.push_stack(self.status);
+        self.program_counter = self.mem_read_u16(0xFFFE);
+        self.set_flag(CPUFlags::Break, true);
     }
 
     fn bvc(&mut self, _operand: Operand) {
@@ -402,7 +405,8 @@ impl Operations for CPU {
     }
 
     fn php(&mut self, _operand: Operand) {
-        self.push_stack(self.status);
+        let status_state = self.status | (1 << CPUFlags::Break as u8) | (1 << CPUFlags::Break2 as u8); 
+        self.push_stack(status_state);
     }
 
     fn pla(&mut self, _operand: Operand) {
@@ -411,7 +415,8 @@ impl Operations for CPU {
     }
 
     fn plp(&mut self, _operand: Operand) {
-        self.status = self.pop_stack();
+        self.status &= (1 << CPUFlags::Break as u8) & (1 << CPUFlags::Break2 as u8);
+        self.status |= self.pop_stack() & !(1 << CPUFlags::Break as u8) & !(1 << CPUFlags::Break2 as u8);
     }
 
     fn rol(&mut self, operand: Operand) {
@@ -688,7 +693,6 @@ impl CPU {
         let opcodes: &HashMap<u8, &'static opcodes::OpCode> = &opcodes::OPCODES_MAP;
 
         let mut fn_map: HashMap<u8, OpFunction> = HashMap::default();
-
         for (bytecode, opcode) in opcodes {
             let opfunction: OpFunction = match opcode.instruction {
                 /* INTERRUPTS */
@@ -803,6 +807,10 @@ impl CPU {
             self.program_counter += 1;
             let starting_program_counter = self.program_counter;
 
+            if opcode.instruction == "BRK" {
+                return
+            }
+
             let args = match opcode.len-1 {
                 0 => Arguments::None,
                 1 => Arguments::One(self.mem_read(self.program_counter)),
@@ -811,10 +819,6 @@ impl CPU {
             };
             //term_log.log_opcode_running(opcode_info, &args, self);
             file_log.log_opcode_running(opcode, &args, self);
-
-            if bytecode == 0x00 {
-                return
-            }
 
             fn_map[&bytecode](self, Operand::new(args, opcode.mode));
 
@@ -1344,7 +1348,6 @@ mod test {
     #[test]
     fn test_jmp_absolute_0x1234() {
         let cpu = test_run(vec![0x4C, 0x34, 0x12, 0x00]);
-        println!("program counter: {:X}", cpu.program_counter);
         assert!(cpu.program_counter == 0x1234+1);
     }
 
@@ -1374,23 +1377,14 @@ mod test {
         cpu.mem_write(ADDR_HIGH, ADDR_2_HIGH);
         cpu.build_rom_load_and_run(vec![0x6C, 0xFF, 0x00, 0x00], None);
 
-        println!("{:X}", cpu.program_counter);
-
         assert!(cpu.program_counter == (ADDR_2_RESULT+1)); // +1 because of the break execute
     }
 
     #[test]
     fn test_jsr() {
         let mut cpu = test_run(vec![0xEA, 0xEA, 0x20, 0x06, 0x80, 0x00, 0xEA, 0x00]);
-        println!("{:X}", cpu.program_counter);
         assert!(cpu.program_counter == bus::ROM+8);
-        println!("Stack pointer: {:X}", cpu.stack_pointer);
-        println!("Stack data @{:X} = {:X}", CPU::get_stack_address(cpu.stack_pointer-1), cpu.mem_read(CPU::get_stack_address(cpu.stack_pointer-1)));
-        println!("Stack data @{:X} = {:X}", CPU::get_stack_address(cpu.stack_pointer  ),  cpu.mem_read(CPU::get_stack_address(cpu.stack_pointer  )));
-        println!("Stack data @{:X} = {:X}", CPU::get_stack_address(cpu.stack_pointer+1),  cpu.mem_read(CPU::get_stack_address(cpu.stack_pointer+1)));
-        println!("Stack data @{:X} = {:X}", CPU::get_stack_address(cpu.stack_pointer+2),  cpu.mem_read(CPU::get_stack_address(cpu.stack_pointer+2)));
         let stack_value = cpu.pop_stack_u16();
-        println!("Stack Value: {:X}", stack_value);
         assert!(stack_value == 0x8006-1);
     }
 
@@ -1448,7 +1442,7 @@ mod test {
         cpu.set_flag(CPUFlags::Zero, true);
         cpu.build_rom_load_and_run(vec![0x08, 0x00], None);
         let stack_value = cpu.pop_stack();
-        assert!(stack_value == 0x02);
+        assert!(stack_value == (0x02 | (1 << CPUFlags::Break as u8) | (1 << CPUFlags::Break2 as u8)));
     }
 
     #[test]

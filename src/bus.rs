@@ -63,7 +63,13 @@ impl Bus {
                     adjusted_addr %= 0x4000;
                 }
 
-                rom.prg_rom[adjusted_addr as usize]
+                if (adjusted_addr as usize) < rom.prg_rom.len() {
+                    rom.prg_rom[adjusted_addr as usize]
+                }
+                else {
+                    0x00
+                }
+
             }
         }
     }
