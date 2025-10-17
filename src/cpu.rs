@@ -18,6 +18,8 @@ pub struct CPU
     pub bus: Bus,
 
     pub cycle: u32,
+
+    pub halted: bool,
 }
 
 const ADDR_STACK_TOP : u16 = 0x01FF;
@@ -556,12 +558,14 @@ trait IllegalOperations {
     fn atx(&mut self, operand: Operand);
     fn axa(&mut self, operand: Operand);
     fn axs(&mut self, operand: Operand);
+    fn dcp(&mut self, operand: Operand);
     fn isc(&mut self, operand: Operand);
     fn kil(&mut self, operand: Operand);
     fn lar(&mut self, operand: Operand);
     fn lax(&mut self, operand: Operand);
     fn rla(&mut self, operand: Operand);
     fn rra(&mut self, operand: Operand);
+    fn slo(&mut self, operand: Operand);
     fn sre(&mut self, operand: Operand);
     fn sxa(&mut self, operand: Operand);
     fn sya(&mut self, operand: Operand);
@@ -571,77 +575,166 @@ trait IllegalOperations {
 
 impl IllegalOperations for CPU {
     fn aac(&mut self, operand: Operand) {
-        if let Arguments::One(value) = operand.args {
-            self.register_a &= value;
-        };
+        let value = self.retreive_operand_value(operand);
+        self.register_a &= value;
+        self.update_zero_and_negative_flags(self.register_a);
+        self.set_flag(CPUFlags::Carry, self.get_flag(CPUFlags::Negative));
     }
 
-    fn aax(&mut self, _operand: Operand) {
-       todo!();
+    fn aax(&mut self, operand: Operand) {
+        let addr = self.retreive_operand_address(operand);
+        let value = self.register_x & self.register_a;
+        self.update_zero_and_negative_flags(value);
+        self.mem_write(addr, value);
     }
 
-    fn arr(&mut self, _operand: Operand) {
-       todo!();
+    fn arr(&mut self, operand: Operand) {
+        let value = self.retreive_operand_value(operand);
+        self.register_a &= value;
+        self.ror(Operand { args: Arguments::None, mode: AddressingMode::NoneAddressing });
+        self.update_zero_and_negative_flags(self.register_a);
+        let bit5: bool = ((self.register_a >> 5) & 1) != 0;
+        let bit6: bool = ((self.register_a >> 6) & 1) != 0;
+        match (bit5, bit6) {
+            (true, true) => {
+                self.set_flag(CPUFlags::Carry,      true);
+                self.set_flag(CPUFlags::Overflow,   false);
+            },
+            (true, false) => {
+                self.set_flag(CPUFlags::Carry,      false);
+                self.set_flag(CPUFlags::Overflow,   true);
+            },
+            (false, true) => {
+                self.set_flag(CPUFlags::Carry,      true);
+                self.set_flag(CPUFlags::Overflow,   true);
+            },
+            (false, false) => {
+                self.set_flag(CPUFlags::Carry,      false);
+                self.set_flag(CPUFlags::Overflow,   false);
+            },
+        }
     }
 
-    fn asr(&mut self, _operand: Operand) {
-       todo!();
+    fn asr(&mut self, operand: Operand) {
+        let value = self.retreive_operand_value(operand);
+        self.register_a &= value;
+        self.lsr(Operand { args: Arguments::None, mode: AddressingMode::NoneAddressing });
     }
 
-    fn atx(&mut self, _operand: Operand) {
-       todo!();
+    fn atx(&mut self, operand: Operand) {
+        let value = self.retreive_operand_value(operand);
+        self.register_a &= value;
+        self.tax(Operand { args: Arguments::None, mode: AddressingMode::NoneAddressing })
     }
 
-    fn axa(&mut self, _operand: Operand) {
-       todo!();
+    fn axa(&mut self, operand: Operand) {
+       let addr = self.retreive_operand_address(operand);
+       let value = self.register_a & self.register_x & 7;
+       self.mem_write(addr, value);
     }
 
-    fn axs(&mut self, _operand: Operand) {
-       todo!();
+    fn axs(&mut self, operand: Operand) {
+        let value = self.retreive_operand_value(operand);
+        let value_2c = (!value).wrapping_add(1);
+
+        self.register_x &= self.register_a;
+
+        let (result, carry, _overflow) = CPU::accumulator_add(self.register_a, value_2c);
+
+        self.register_x = result;
+        self.set_flag(CPUFlags::Carry, carry);
+        self.update_zero_and_negative_flags(self.register_x);
     }
 
-    fn isc(&mut self, _operand: Operand){
-       todo!();
+    fn dcp(&mut self, operand: Operand) {
+        let addr = self.retreive_operand_address(operand);
+        let value = self.mem_read(addr);
+        let dec1 = (!1u8).wrapping_add(1);
+
+        let (result, carry, _overflow) = CPU::accumulator_add(value, dec1);
+        self.mem_write(addr, result);
+        self.set_flag(CPUFlags::Carry, carry);
+    }
+
+    fn isc(&mut self, operand: Operand) {
+        let addr = self.retreive_operand_address(operand);
+        let value = self.mem_read(addr).wrapping_add(1);
+        self.mem_write(addr, value);
+
+        let value2c = (!value).wrapping_add(1);
+
+        let (result, carry, overflow) = CPU::accumulator_add(self.register_a, value2c);
+        self.register_a = result;
+        self.set_flag(CPUFlags::Carry, carry);
+        self.set_flag(CPUFlags::Overflow, overflow);
+        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn kil(&mut self, _operand: Operand) {
-       todo!();
+       self.halted = true;
     }
 
-    fn lar(&mut self, _operand: Operand) {
-       todo!();
+    fn lar(&mut self, operand: Operand) {
+        let value = self.retreive_operand_value(operand);
+        let result = value & self.stack_pointer;
+        self.register_a = result;
+        self.register_x = result;
+        self.stack_pointer = result;
+        self.update_zero_and_negative_flags(result);
     }
 
-    fn lax(&mut self, _operand: Operand) {
-       todo!();
+    fn lax(&mut self, operand: Operand) {
+        let value = self.retreive_operand_value(operand);
+        self.register_a = value;
+        self.register_x = value;
+        self.update_zero_and_negative_flags(value);
     }
 
-    fn rla(&mut self, _operand: Operand) {
-       todo!();
+    fn rla(&mut self, operand: Operand) {
+        self.rol(operand);
+        self.and(operand);
     }
 
-    fn rra(&mut self, _operand: Operand) {
-       todo!();
+    fn rra(&mut self, operand: Operand) {
+        self.ror(operand);
+        self.adc(operand);
     }
 
-    fn sre(&mut self, _operand: Operand) {
-       todo!();
+    fn slo(&mut self, operand: Operand) {
+       self.asl(operand);
+       self.ora(operand);
     }
 
-    fn sxa(&mut self, _operand: Operand) {
-       todo!();
+    fn sre(&mut self, operand: Operand) {
+       self.lsr(operand);
+       self.eor(operand);
     }
 
-    fn sya(&mut self, _operand: Operand) {
-       todo!();
+    fn sxa(&mut self, operand: Operand) {
+        let addr = self.retreive_operand_address(operand);
+        let high_byte = (addr >> 8) as u8;
+        let result = self.register_x & high_byte.wrapping_add(1);
+        self.mem_write(addr, result);
+    }
+
+    fn sya(&mut self, operand: Operand) {
+        let addr = self.retreive_operand_address(operand);
+        let high_byte = (addr >> 8) as u8;
+        let result = self.register_y & high_byte.wrapping_add(1);
+        self.mem_write(addr, result);
     }
 
     fn xaa(&mut self, _operand: Operand) {
-       todo!();
+       self.register_a = 0xFF;
     }
 
-    fn xas(&mut self, _operand: Operand){
-        todo!();
+    fn xas(&mut self, operand: Operand) {
+        self.stack_pointer = self.register_x & self.register_a;
+
+        let addr = self.retreive_operand_address(operand);
+        let high_byte = (addr >> 8) as u8;
+        let result = self.stack_pointer & high_byte.wrapping_add(1);
+        self.mem_write(addr, result);
     }
 }
 
@@ -662,6 +755,8 @@ impl CPU {
             stack_pointer: (ADDR_STACK_TOP - ADDR_STACK_BOTTOM) as u8,
             bus: Bus::new(),
             cycle: 0,
+
+            halted: false,
         }
     }
 
@@ -774,6 +869,7 @@ impl CPU {
                 "ATX" => Self::atx,
                 "AXA" => Self::axa,
                 "AXS" => Self::axs,
+                "DCP" => Self::dcp,
                 "DOP" => Self::nop,
                 "ISC" => Self::isc,
                 "KIL" => Self::kil,
@@ -781,6 +877,7 @@ impl CPU {
                 "LAX" => Self::lax,
                 "RLA" => Self::rla,                
                 "RRA" => Self::rra,
+                "SLO" => Self::slo,
                 "SRE" => Self::sre,
                 "SXA" => Self::sxa,
                 "SYA" => Self::sya,
@@ -807,7 +904,7 @@ impl CPU {
             self.program_counter += 1;
             let starting_program_counter = self.program_counter;
 
-            if opcode.instruction == "BRK" {
+            if opcode.instruction == "BRK" || self.halted {
                 return
             }
 
@@ -1577,5 +1674,57 @@ mod test {
         const TEST_VALUE: u8 = (ADDR_STACK_TOP - ADDR_STACK_BOTTOM - 1) as u8;
         cpu.build_rom_load_and_run(vec![0xA2, TEST_VALUE, 0x9A, 0x00], None);
         assert!(cpu.stack_pointer == TEST_VALUE);
+    }
+
+    #[test]
+    fn test_aac_0x83_and_0x82() {
+        let cpu = test_run(vec![0xA9, 0x83, 0x0B, 0x82, 0x00]);
+        assert!(cpu.register_a == 0x82);
+        assert!(cpu.get_flag(CPUFlags::Negative));
+        assert!(cpu.get_flag(CPUFlags::Carry));
+    }
+
+    #[test]
+    fn test_aax_0x83_and_0x82() {
+        let mut cpu = CPU::new();
+        cpu.register_x = 0x83;
+        cpu.register_a = 0x82;
+        cpu.build_rom_load_and_run(vec![0x8F, 0x00, 0x00, 0x00], None);
+        assert!(cpu.mem_read(0x0000) == (0x83 & 0x82));
+        assert!(cpu.get_flag(CPUFlags::Negative));
+    }
+
+    #[test]
+    fn test_arr_0x83_and_0x82() {
+        let mut cpu = CPU::new();
+        cpu.register_a = 0x83;
+        cpu.build_rom_load_and_run(vec![0x6B, 0x82, 0x00], None);
+        assert!(cpu.register_a == 0x41);
+        assert!(cpu.get_flag(CPUFlags::Overflow));
+    }
+
+    #[test]
+    fn test_asr_0x83_and_0x82() {
+        let mut cpu = CPU::new();
+        cpu.register_a = 0x83;
+        cpu.build_rom_load_and_run(vec![0x4B, 0x82, 0x00], None);
+        assert!(cpu.register_a == 0x41);
+    }
+
+    #[test]
+    fn test_atx_0x83_and_0x82() {
+        let mut cpu = CPU::new();
+        cpu.register_a = 0x83;
+        cpu.build_rom_load_and_run(vec![0xAB, 0x82, 0x00], None);
+        assert!(cpu.register_x == 0x82);
+    }
+
+    #[test]
+    fn test_axa_0x83_and_0x82() {
+        let mut cpu = CPU::new();
+        cpu.register_a = 0x83;
+        cpu.register_x = 0x82;
+        cpu.build_rom_load_and_run(vec![0x9F, 0x00, 0x00, 0x00], None);
+        assert!(cpu.mem_read(0x0000) == 0x2);
     }
 }

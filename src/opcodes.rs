@@ -324,6 +324,15 @@ lazy_static!
         /* AXS - AND X Register with Accumulator, then subtract */ 
         OpCode::new(0xCB, "AXS", 2, 2, AddressingMode::Immediate),
 
+        /* DCP - Subtract 1 from memory */ 
+        OpCode::new(0xC7, "DCP", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0xD7, "DCP", 2, 6, AddressingMode::ZeroPageX),
+        OpCode::new(0xCF, "DCP", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0xDF, "DCP", 3, 7, AddressingMode::AbsoluteX),
+        OpCode::new(0xDB, "DCP", 3, 7, AddressingMode::AbsoluteY),
+        OpCode::new(0xC3, "DCP", 2, 8, AddressingMode::IndirectX),
+        OpCode::new(0xD3, "DCP", 2, 8, AddressingMode::IndirectY),
+
         /* DOP - Double NOP */ 
         OpCode::new(0x04, "DOP", 2, 3, AddressingMode::ZeroPage),
         OpCode::new(0x14, "DOP", 2, 4, AddressingMode::ZeroPageX),
@@ -402,6 +411,15 @@ lazy_static!
 
         /* SBC - Subtract with Carry */ 
         OpCode::new(0xEB, "SBC", 2, 2, AddressingMode::Immediate),
+
+        /* SLO - Shift memory left, then OR accumulator with memory */ 
+        OpCode::new(0x07, "SLO", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0x17, "SLO", 2, 6, AddressingMode::ZeroPageX),
+        OpCode::new(0x0F, "SLO", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0x1F, "SLO", 3, 7, AddressingMode::AbsoluteX),
+        OpCode::new(0x1B, "SLO", 3, 7, AddressingMode::AbsoluteY),
+        OpCode::new(0x03, "SLO", 2, 8, AddressingMode::IndirectX),
+        OpCode::new(0x13, "SLO", 2, 8, AddressingMode::IndirectY),
 
         /* SRE - Shift Right, then EOR */ 
         OpCode::new(0x47, "SRE", 2, 5, AddressingMode::ZeroPage),
