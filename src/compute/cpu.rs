@@ -1,11 +1,13 @@
 // Copyright 2025 Kevin Gauthier. All rights reserved.
 
 use std::collections::HashMap;
-use crate::{bus, opcodes};
-use crate::arguments::Arguments;
-use crate::bus::{Bus, Memory};
+use crate::compute::{bus, opcodes};
+use crate::compute::arguments::Arguments;
+use crate::compute::bus::{Bus, Memory};
 use crate::cartridge::Rom;
 use crate::logging::{ANSIColor, FileLog, LogWrite, Logger, TerminalLog};
+use crate::utils::bitflags::BitFlag;
+use crate::utils::errors::{CPUError, MemReadError};
 
 pub struct CPU
 {
@@ -68,7 +70,7 @@ impl Operand {
 }
 
 impl Memory for CPU {
-    fn mem_read(&self, addr: u16) -> u8 {
+    fn mem_read(&mut self, addr: u16) -> Result<u8, MemReadError> {
         self.bus.mem_read(addr)
     }
 
@@ -76,7 +78,7 @@ impl Memory for CPU {
         self.bus.mem_write(addr, data);
     }
 
-    fn mem_read_u16(&self, addr: u16) -> u16 {
+    fn mem_read_u16(&mut self, addr: u16) -> Result<u16, MemReadError> {
         self.bus.mem_read_u16(addr)
     }
 
@@ -86,89 +88,89 @@ impl Memory for CPU {
 }
 
 
-type OpFunction = fn(&mut CPU, Operand);
+type OpFunction = fn(&mut CPU, Operand) -> Option<CPUError>;
 
 trait Operations {
-// ==========
-    // OPERATIONS
-    // ==========
-    
-    fn adc(&mut self, operand: Operand);
-    fn and(&mut self, operand: Operand);
-    fn asl(&mut self, operand: Operand);
-    fn bcc(&mut self, operand: Operand);
-    fn bcs(&mut self, operand: Operand);
-    fn beq(&mut self, operand: Operand);
-    fn bit(&mut self, operand: Operand);
-    fn bmi(&mut self, operand: Operand);
-    fn bne(&mut self, operand: Operand);
-    fn bpl(&mut self, operand: Operand);
-    fn brk(&mut self, operand: Operand);
-    fn bvc(&mut self, operand: Operand);
-    fn bvs(&mut self, operand: Operand);
-    fn clc(&mut self, operand: Operand);
-    fn cld(&mut self, operand: Operand);
-    fn cli(&mut self, operand: Operand);
-    fn clv(&mut self, operand: Operand);
-    fn cmp(&mut self, operand: Operand);
-    fn cpx(&mut self, operand: Operand);
-    fn cpy(&mut self, operand: Operand);
-    fn dec(&mut self, operand: Operand);
-    fn dex(&mut self, operand: Operand);
-    fn dey(&mut self, operand: Operand);
-    fn eor(&mut self, operand: Operand);
-    fn inc(&mut self, operand: Operand);    
-    fn inx(&mut self, operand: Operand);
-    fn iny(&mut self, operand: Operand);
-    fn jmp(&mut self, operand: Operand);
-    fn jsr(&mut self, operand: Operand);
-    fn lda(&mut self, operand: Operand);
-    fn ldx(&mut self, operand: Operand);
-    fn ldy(&mut self, operand: Operand);
-    fn lsr(&mut self, operand: Operand);
-    fn nop(&mut self, operand: Operand);
-    fn ora(&mut self, operand: Operand);
-    fn pha(&mut self, operand: Operand);
-    fn php(&mut self, operand: Operand);
-    fn pla(&mut self, operand: Operand);
-    fn plp(&mut self, operand: Operand);
-    fn rol(&mut self, operand: Operand);
-    fn ror(&mut self, operand: Operand);
-    fn rti(&mut self, operand: Operand);
-    fn rts(&mut self, operand: Operand);
-    fn sbc(&mut self, operand: Operand);
-    fn sec(&mut self, operand: Operand);
-    fn sed(&mut self, operand: Operand);
-    fn sei(&mut self, operand: Operand);
-    fn sta(&mut self, operand: Operand);
-    fn stx(&mut self, operand: Operand);
-    fn sty(&mut self, operand: Operand);
-    fn tax(&mut self, operand: Operand);
-    fn tay(&mut self, operand: Operand);
-    fn tsx(&mut self, operand: Operand);
-    fn txa(&mut self, operand: Operand);
-    fn txs(&mut self, operand: Operand);
-    fn tya(&mut self, operand: Operand);
+    fn adc(&mut self, operand: Operand) -> Option<CPUError>;
+    fn and(&mut self, operand: Operand) -> Option<CPUError>;
+    fn asl(&mut self, operand: Operand) -> Option<CPUError>;
+    fn bcc(&mut self, operand: Operand) -> Option<CPUError>;
+    fn bcs(&mut self, operand: Operand) -> Option<CPUError>;
+    fn beq(&mut self, operand: Operand) -> Option<CPUError>;
+    fn bit(&mut self, operand: Operand) -> Option<CPUError>;
+    fn bmi(&mut self, operand: Operand) -> Option<CPUError>;
+    fn bne(&mut self, operand: Operand) -> Option<CPUError>;
+    fn bpl(&mut self, operand: Operand) -> Option<CPUError>;
+    fn brk(&mut self, operand: Operand) -> Option<CPUError>;
+    fn bvc(&mut self, operand: Operand) -> Option<CPUError>;
+    fn bvs(&mut self, operand: Operand) -> Option<CPUError>;
+    fn clc(&mut self, operand: Operand) -> Option<CPUError>;
+    fn cld(&mut self, operand: Operand) -> Option<CPUError>;
+    fn cli(&mut self, operand: Operand) -> Option<CPUError>;
+    fn clv(&mut self, operand: Operand) -> Option<CPUError>;
+    fn cmp(&mut self, operand: Operand) -> Option<CPUError>;
+    fn cpx(&mut self, operand: Operand) -> Option<CPUError>;
+    fn cpy(&mut self, operand: Operand) -> Option<CPUError>;
+    fn dec(&mut self, operand: Operand) -> Option<CPUError>;
+    fn dex(&mut self, operand: Operand) -> Option<CPUError>;
+    fn dey(&mut self, operand: Operand) -> Option<CPUError>;
+    fn eor(&mut self, operand: Operand) -> Option<CPUError>;
+    fn inc(&mut self, operand: Operand) -> Option<CPUError>;    
+    fn inx(&mut self, operand: Operand) -> Option<CPUError>;
+    fn iny(&mut self, operand: Operand) -> Option<CPUError>;
+    fn jmp(&mut self, operand: Operand) -> Option<CPUError>;
+    fn jsr(&mut self, operand: Operand) -> Option<CPUError>;
+    fn lda(&mut self, operand: Operand) -> Option<CPUError>;
+    fn ldx(&mut self, operand: Operand) -> Option<CPUError>;
+    fn ldy(&mut self, operand: Operand) -> Option<CPUError>;
+    fn lsr(&mut self, operand: Operand) -> Option<CPUError>;
+    fn nop(&mut self, operand: Operand) -> Option<CPUError>;
+    fn ora(&mut self, operand: Operand) -> Option<CPUError>;
+    fn pha(&mut self, operand: Operand) -> Option<CPUError>;
+    fn php(&mut self, operand: Operand) -> Option<CPUError>;
+    fn pla(&mut self, operand: Operand) -> Option<CPUError>;
+    fn plp(&mut self, operand: Operand) -> Option<CPUError>;
+    fn rol(&mut self, operand: Operand) -> Option<CPUError>;
+    fn ror(&mut self, operand: Operand) -> Option<CPUError>;
+    fn rti(&mut self, operand: Operand) -> Option<CPUError>;
+    fn rts(&mut self, operand: Operand) -> Option<CPUError>;
+    fn sbc(&mut self, operand: Operand) -> Option<CPUError>;
+    fn sec(&mut self, operand: Operand) -> Option<CPUError>;
+    fn sed(&mut self, operand: Operand) -> Option<CPUError>;
+    fn sei(&mut self, operand: Operand) -> Option<CPUError>;
+    fn sta(&mut self, operand: Operand) -> Option<CPUError>;
+    fn stx(&mut self, operand: Operand) -> Option<CPUError>;
+    fn sty(&mut self, operand: Operand) -> Option<CPUError>;
+    fn tax(&mut self, operand: Operand) -> Option<CPUError>;
+    fn tay(&mut self, operand: Operand) -> Option<CPUError>;
+    fn tsx(&mut self, operand: Operand) -> Option<CPUError>;
+    fn txa(&mut self, operand: Operand) -> Option<CPUError>;
+    fn txs(&mut self, operand: Operand) -> Option<CPUError>;
+    fn tya(&mut self, operand: Operand) -> Option<CPUError>;
 }
 
 impl Operations for CPU {
-    fn adc(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn adc(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
 
         let (result, carry, overflow) = CPU::accumulator_add(self.register_a, value);
 
         self.register_a = result;
         self.set_flag(CPUFlags::Carry, carry);
         self.set_flag(CPUFlags::Overflow, overflow);
+
+        None
     }
 
-    fn and(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn and(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
         
         self.register_a &= value;
+
+        None
     }
 
-    fn asl(&mut self, operand: Operand) {
+    fn asl(&mut self, operand: Operand) -> Option<CPUError> {
         match operand.args {
             Arguments::None => { // accumulator mode
                 self.set_flag(CPUFlags::Carry, self.register_a >= 0b1000_0000);
@@ -180,8 +182,8 @@ impl Operations for CPU {
             Arguments::One(_) => (),
 
             Arguments::Two(_) => { // memory mode
-                let addr = self.retreive_operand_address(operand);
-                let value = self.mem_read(addr);
+                let addr = self.retreive_operand_address(operand).ok()?;
+                let value = self.mem_read(addr).ok()?;
 
                 self.set_flag(CPUFlags::Carry, value >= 0b1000_0000);
                 let shifted_value = value << 1;
@@ -189,187 +191,247 @@ impl Operations for CPU {
                 self.update_zero_and_negative_flags(shifted_value);
             }
         }
+
+        None
     }
 
-    fn bcc(&mut self, _operand: Operand) {
-        self.branch_for_flag_value(CPUFlags::Carry, false);
+    fn bcc(&mut self, operand: Operand) -> Option<CPUError> {
+        self.branch_for_flag_value(CPUFlags::Carry, false, operand.args.get_arg1()?);
+
+        None
     }
 
-    fn bcs(&mut self, _operand: Operand) {
-        self.branch_for_flag_value(CPUFlags::Carry, true);
+    fn bcs(&mut self, operand: Operand) -> Option<CPUError> {
+        self.branch_for_flag_value(CPUFlags::Carry, true, operand.args.get_arg1()?);
+
+        None
     }
 
-    fn beq(&mut self, _operand: Operand) {
-        self.branch_for_flag_value(CPUFlags::Zero, true);
+    fn beq(&mut self, operand: Operand) -> Option<CPUError> {
+        self.branch_for_flag_value(CPUFlags::Zero, true, operand.args.get_arg1()?);
+
+        None
     }
 
-    fn bit(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn bit(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
         
         self.set_flag(CPUFlags::Overflow, (value & 0b0010_0000) != 0);
         self.set_flag(CPUFlags::Negative, (value & 0b0100_0000) != 0);
         self.set_flag(CPUFlags::Zero, value & self.register_a == 0);
+
+        None
     }
 
-    fn bmi(&mut self, _operand: Operand) {
-        self.branch_for_flag_value(CPUFlags::Negative, true);
+    fn bmi(&mut self, operand: Operand) -> Option<CPUError> {
+        self.branch_for_flag_value(CPUFlags::Negative, true, operand.args.get_arg1()?);
+
+        None
     }
 
-    fn bne(&mut self, _operand: Operand) {
-        self.branch_for_flag_value(CPUFlags::Zero, false);
+    fn bne(&mut self, operand: Operand) -> Option<CPUError> {
+        self.branch_for_flag_value(CPUFlags::Zero, false, operand.args.get_arg1()?);
+
+        None
     }
 
-    fn bpl(&mut self, _operand: Operand) {
-        self.branch_for_flag_value(CPUFlags::Negative, false);
+    fn bpl(&mut self, operand: Operand) -> Option<CPUError> {
+        self.branch_for_flag_value(CPUFlags::Negative, false, operand.args.get_arg1()?);
+
+        None
     }
 
-    fn brk(&mut self, _operand: Operand) {
+    fn brk(&mut self, _operand: Operand) -> Option<CPUError> {
         self.push_stack_u16(self.program_counter);
         self.push_stack(self.status);
-        self.program_counter = self.mem_read_u16(0xFFFE);
+        self.program_counter = self.mem_read_u16(0xFFFE).ok()?;
         self.set_flag(CPUFlags::Break, true);
+
+        None
     }
 
-    fn bvc(&mut self, _operand: Operand) {
-        self.branch_for_flag_value(CPUFlags::Overflow, false);
+    fn bvc(&mut self, operand: Operand) -> Option<CPUError> {
+        self.branch_for_flag_value(CPUFlags::Overflow, false, operand.args.get_arg1()?);
+
+        None
     }
 
-    fn bvs(&mut self, _operand: Operand) {
-        self.branch_for_flag_value(CPUFlags::Overflow, true);
+    fn bvs(&mut self, operand: Operand) -> Option<CPUError> {
+        self.branch_for_flag_value(CPUFlags::Overflow, true, operand.args.get_arg1()?);
+
+        None
     }
 
-    fn clc(&mut self, _operand: Operand) {
+    fn clc(&mut self, _operand: Operand) -> Option<CPUError> {
         self.set_flag(CPUFlags::Carry, false);
+
+        None
     }
 
-    fn cld(&mut self, _operand: Operand) {
+    fn cld(&mut self, _operand: Operand) -> Option<CPUError> {
         self.set_flag(CPUFlags::DecimalMode, false);
+
+        None
     }
 
-    fn cli(&mut self, _operand: Operand) {
+    fn cli(&mut self, _operand: Operand) -> Option<CPUError> {
         self.set_flag(CPUFlags::InterruptDisable, false);
+
+        None
     }
 
-    fn clv(&mut self, _operand: Operand) {
+    fn clv(&mut self, _operand: Operand) -> Option<CPUError> {
         self.set_flag(CPUFlags::Overflow, false);
+
+        None
     }
 
-    fn cmp(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn cmp(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
 
         self.compare(self.register_a, value);
+
+        None
     }
 
-    fn cpx(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn cpx(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
         
         self.compare(self.register_x, value);
+
+        None
     }
 
-    fn cpy(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn cpy(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
         
         self.compare(self.register_y, value);
+
+        None
     }
 
-    fn dec(&mut self, operand: Operand) {
-        let addr = self.retreive_operand_address(operand);
-        let value = self.mem_read(addr);
+    fn dec(&mut self, operand: Operand) -> Option<CPUError> {
+        let addr = self.retreive_operand_address(operand).ok()?;
+        let value = self.mem_read(addr).ok()?;
 
         let new_value = value.wrapping_sub(1);
         self.mem_write(addr, new_value);
         self.update_zero_and_negative_flags(new_value);
+
+        None
     }
 
-    fn dex(&mut self, _operand: Operand) {
+    fn dex(&mut self, _operand: Operand) -> Option<CPUError> {
         let value = self.register_x.wrapping_sub(1);
         self.register_x = value;
         self.update_zero_and_negative_flags(value);
+
+        None
     }
 
-    fn dey(&mut self, _operand: Operand) {
+    fn dey(&mut self, _operand: Operand) -> Option<CPUError> {
         let value = self.register_y.wrapping_sub(1);
         self.register_y = value;
         self.update_zero_and_negative_flags(value);
+
+        None
     }
 
-    fn eor(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn eor(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
 
         self.register_a ^= value;
         self.update_zero_and_negative_flags(self.register_a);
+
+        None
     }
 
-    fn inc(&mut self, operand: Operand) {
-        let addr = self.retreive_operand_address(operand);
-        let value = self.mem_read(addr);
+    fn inc(&mut self, operand: Operand) -> Option<CPUError> {
+        let addr = self.retreive_operand_address(operand).ok()?;
+        let value = self.mem_read(addr).ok()?;
 
         let new_value = value.wrapping_add(1);
         self.mem_write(addr, new_value);
         self.update_zero_and_negative_flags(new_value);
+
+        None
     }
     
-    fn inx(&mut self, _operand: Operand) {
+    fn inx(&mut self, _operand: Operand) -> Option<CPUError> {
         self.register_x = self.register_x.wrapping_add(1);
         self.update_zero_and_negative_flags(self.register_x);
+
+        None
     }
 
-    fn iny(&mut self, _operand: Operand) {
+    fn iny(&mut self, _operand: Operand) -> Option<CPUError> {
         self.register_y = self.register_y.wrapping_add(1);
         self.update_zero_and_negative_flags(self.register_y);
+
+        None
     }
 
-    fn jmp(&mut self, operand: Operand) {
+    fn jmp(&mut self, operand: Operand) -> Option<CPUError> {
         if let Arguments::Two(mut addr) = operand.args {
             if operand.mode == AddressingMode::NoneAddressing {
                 // emulating 6502 bug with reading at the boundary of pages
                 // ref: https://www.nesdev.org/obelisk-6502-guide/reference.html#JMP
 
                 if (addr & 0x00FF) == 0x00FF {
-                    let high = self.mem_read(addr & 0xFF00);
-                    addr = self.mem_read(addr & 0x00FF) as u16 | ((high as u16) << 8);
+                    let high = self.mem_read(addr & 0xFF00).ok()?;
+                    addr = self.mem_read(addr & 0x00FF).ok()? as u16 | ((high as u16) << 8);
                 }
                 else {
-                    addr = self.mem_read_u16(addr);
+                    addr = self.mem_read_u16(addr).ok()?;
                 }
             }
 
             //println!("\tCPU::jmp -- Addr: {:x}", addr);
             self.program_counter = addr; 
         }
+
+        None
     }
 
-    fn jsr(&mut self, operand: Operand) {
-        let addr = self.retreive_operand_address(operand);
+    fn jsr(&mut self, operand: Operand) -> Option<CPUError> {
+        let addr = self.retreive_operand_address(operand).ok()?;
 
         //println!("\tCPU::jsr -- Addr: {:x}, Pushing: {:x}", addr, self.program_counter.wrapping_add(2));
 
         self.push_stack_u16(self.program_counter.wrapping_add(2));
         self.program_counter = addr;
+
+        None
     }
 
-    fn lda(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn lda(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
 
         self.register_a = value;
         self.update_zero_and_negative_flags(value);
+
+        None
     }
 
-    fn ldx(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn ldx(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
 
         self.register_x = value;
         self.update_zero_and_negative_flags(value);
+
+        None
     }
 
-    fn ldy(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn ldy(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
 
         self.register_y = value;
         self.update_zero_and_negative_flags(value);
+
+        None
     }
 
-    fn lsr(&mut self, operand: Operand) {
+    fn lsr(&mut self, operand: Operand) -> Option<CPUError> {
         match operand.args {
             Arguments::None => { // accumulator mode
                 self.set_flag(CPUFlags::Carry, (self.register_a & 0b0000_0001) != 0);
@@ -380,8 +442,8 @@ impl Operations for CPU {
             Arguments::One(_) => (),
 
             Arguments::Two(_) => { // memory mode
-                let addr = self.retreive_operand_address(operand);
-                let value = self.mem_read(addr);
+                let addr = self.retreive_operand_address(operand).ok()?;
+                let value = self.mem_read(addr).ok()?;
 
                 self.set_flag(CPUFlags::Carry, (value & 0b0000_0001) != 0);
                 let shifted_value = value >> 1;
@@ -389,39 +451,51 @@ impl Operations for CPU {
                 self.update_zero_and_negative_flags(shifted_value);
             }
         }
+
+        None
     }
     
-    fn nop(&mut self, _operand: Operand) {
-
+    fn nop(&mut self, _operand: Operand) -> Option<CPUError> {
+        None
     }
 
-    fn ora(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn ora(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
 
         self.register_a |= value;
         self.update_zero_and_negative_flags(self.register_a);
+
+        None
     }
 
-    fn pha(&mut self, _operand: Operand) {
+    fn pha(&mut self, _operand: Operand) -> Option<CPUError> {
         self.push_stack(self.register_a);
+
+        None
     }
 
-    fn php(&mut self, _operand: Operand) {
+    fn php(&mut self, _operand: Operand) -> Option<CPUError> {
         let status_state = self.status | (1 << CPUFlags::Break as u8) | (1 << CPUFlags::Break2 as u8); 
         self.push_stack(status_state);
+
+        None
     }
 
-    fn pla(&mut self, _operand: Operand) {
-        self.register_a = self.pop_stack();
+    fn pla(&mut self, _operand: Operand) -> Option<CPUError> {
+        self.register_a = self.pop_stack().ok()?;
         self.update_zero_and_negative_flags(self.register_a);
+
+        None
     }
 
-    fn plp(&mut self, _operand: Operand) {
+    fn plp(&mut self, _operand: Operand) -> Option<CPUError> {
         self.status &= (1 << CPUFlags::Break as u8) & (1 << CPUFlags::Break2 as u8);
-        self.status |= self.pop_stack() & !(1 << CPUFlags::Break as u8) & !(1 << CPUFlags::Break2 as u8);
+        self.status |= self.pop_stack().ok()? & !(1 << CPUFlags::Break as u8) & !(1 << CPUFlags::Break2 as u8);
+
+        None
     }
 
-    fn rol(&mut self, operand: Operand) {
+    fn rol(&mut self, operand: Operand) -> Option<CPUError> {
         match operand.args {
             Arguments::None => { // accumulator mode
                 let old_carry = self.get_flag(CPUFlags::Carry) as u8;
@@ -433,8 +507,8 @@ impl Operations for CPU {
             Arguments::One(_) => (),
 
             Arguments::Two(_) => { // memory mode
-                let addr = self.retreive_operand_address(operand);
-                let value = self.mem_read(addr);
+                let addr = self.retreive_operand_address(operand).ok()?;
+                let value = self.mem_read(addr).ok()?;
 
                 let old_carry = self.get_flag(CPUFlags::Carry) as u8;
                 self.set_flag(CPUFlags::Carry, (value & 0b1000_0000) != 0);
@@ -444,9 +518,11 @@ impl Operations for CPU {
                 self.set_flag(CPUFlags::Negative, (result & 0b1000_0000) != 0);
             }
         }
+
+        None
     }
 
-    fn ror(&mut self, operand: Operand) {
+    fn ror(&mut self, operand: Operand) -> Option<CPUError> {
         match operand.args {
             Arguments::None => { // accumulator mode
                 let old_carry = self.get_flag(CPUFlags::Carry) as u8;
@@ -459,8 +535,8 @@ impl Operations for CPU {
 
             Arguments::Two(_) => { // memory mode
                 let old_carry = self.get_flag(CPUFlags::Carry) as u8;
-                let addr = self.retreive_operand_address(operand);
-                let value = self.mem_read(addr);
+                let addr = self.retreive_operand_address(operand).ok()?;
+                let value = self.mem_read(addr).ok()?;
 
                 self.set_flag(CPUFlags::Carry, (value & 0b0000_0001) != 0);
                 let result= (value >> 1) | (old_carry << 7);
@@ -469,21 +545,27 @@ impl Operations for CPU {
                 self.set_flag(CPUFlags::Negative, (result & 0b1000_0000) != 0);
             }
         }
+
+        None
     }
 
-    fn rti(&mut self, _operand: Operand) {
-        self.status = self.pop_stack();
-        self.program_counter = self.pop_stack_u16();
+    fn rti(&mut self, _operand: Operand) -> Option<CPUError> {
+        self.status = self.pop_stack().ok()?;
+        self.program_counter = self.pop_stack_u16().ok()?;
+
+        None
     }
 
-    fn rts(&mut self, _operand: Operand) {
-        self.program_counter = self.pop_stack_u16();
+    fn rts(&mut self, _operand: Operand) -> Option<CPUError> {
+        self.program_counter = self.pop_stack_u16().ok()?;
 
         //println!("\tCPU::rts -- Popped addr: {:x}", self.program_counter);
+
+        None
     }
 
-    fn sbc(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn sbc(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
 
         let value_2c = (!value).wrapping_add(1);
         let (result, carry, overflow) = CPU::accumulator_add(self.register_a, value_2c);
@@ -491,107 +573,137 @@ impl Operations for CPU {
         self.register_a = result;
         self.set_flag(CPUFlags::Carry, carry);
         self.set_flag(CPUFlags::Overflow, overflow);
+
+        None
     }
 
-    fn sec(&mut self, _operand: Operand) {
+    fn sec(&mut self, _operand: Operand) -> Option<CPUError> {
         self.set_flag(CPUFlags::Carry, true);
+
+        None
     }
 
-    fn sed(&mut self, _operand: Operand) {
+    fn sed(&mut self, _operand: Operand) -> Option<CPUError> {
         self.set_flag(CPUFlags::DecimalMode, true);
+
+        None
     }
 
-    fn sei(&mut self, _operand: Operand) {
+    fn sei(&mut self, _operand: Operand) -> Option<CPUError> {
         self.set_flag(CPUFlags::InterruptDisable, true);
+
+        None
     }
 
-    fn sta(&mut self, operand: Operand) {
-        let addr = self.retreive_operand_address(operand);
+    fn sta(&mut self, operand: Operand) -> Option<CPUError> {
+        let addr = self.retreive_operand_address(operand).ok()?;
         self.mem_write(addr, self.register_a);
+
+        None
     }
 
-    fn stx(&mut self, operand: Operand) {
-        let addr = self.retreive_operand_address(operand);
+    fn stx(&mut self, operand: Operand) -> Option<CPUError> {
+        let addr = self.retreive_operand_address(operand).ok()?;
         self.mem_write(addr, self.register_x);
+
+        None
     }
 
-    fn sty(&mut self, operand: Operand) {
-        let addr = self.retreive_operand_address(operand);
+    fn sty(&mut self, operand: Operand) -> Option<CPUError> {
+        let addr = self.retreive_operand_address(operand).ok()?;
         self.mem_write(addr, self.register_y);
+
+        None
     }
 
-    fn tax(&mut self, _operand: Operand) {
+    fn tax(&mut self, _operand: Operand) -> Option<CPUError> {
         self.register_x = self.register_a;
         self.update_zero_and_negative_flags(self.register_x);
+
+        None
     }
 
-    fn tay(&mut self, _operand: Operand) {
+    fn tay(&mut self, _operand: Operand) -> Option<CPUError> {
         self.register_y = self.register_a;
         self.update_zero_and_negative_flags(self.register_y);
+
+        None
     }
 
-    fn tsx(&mut self, _operand: Operand) {
+    fn tsx(&mut self, _operand: Operand) -> Option<CPUError> {
         self.register_x = self.stack_pointer;
         self.update_zero_and_negative_flags(self.register_x);
+
+        None
     }
 
-    fn txa(&mut self, _operand: Operand) {
+    fn txa(&mut self, _operand: Operand) -> Option<CPUError> {
         self.register_a = self.register_x;
         self.update_zero_and_negative_flags(self.register_a);
+
+        None
     }
 
-    fn txs(&mut self, _operand: Operand) {
+    fn txs(&mut self, _operand: Operand) -> Option<CPUError> {
         self.stack_pointer = self.register_x;
+
+        None
     }
 
-    fn tya(&mut self, _operand: Operand) {
+    fn tya(&mut self, _operand: Operand) -> Option<CPUError> {
         self.register_a = self.register_y;
         self.update_zero_and_negative_flags(self.register_a);
+
+        None
     }
 }
 
 trait IllegalOperations {
-    fn aac(&mut self, operand: Operand);
-    fn aax(&mut self, operand: Operand);
-    fn arr(&mut self, operand: Operand);
-    fn asr(&mut self, operand: Operand);
-    fn atx(&mut self, operand: Operand);
-    fn axa(&mut self, operand: Operand);
-    fn axs(&mut self, operand: Operand);
-    fn dcp(&mut self, operand: Operand);
-    fn isc(&mut self, operand: Operand);
-    fn kil(&mut self, operand: Operand);
-    fn lar(&mut self, operand: Operand);
-    fn lax(&mut self, operand: Operand);
-    fn rla(&mut self, operand: Operand);
-    fn rra(&mut self, operand: Operand);
-    fn slo(&mut self, operand: Operand);
-    fn sre(&mut self, operand: Operand);
-    fn sxa(&mut self, operand: Operand);
-    fn sya(&mut self, operand: Operand);
-    fn xaa(&mut self, operand: Operand);
-    fn xas(&mut self, operand: Operand);
+    fn aac(&mut self, operand: Operand) -> Option<CPUError>;
+    fn aax(&mut self, operand: Operand) -> Option<CPUError>;
+    fn arr(&mut self, operand: Operand) -> Option<CPUError>;
+    fn asr(&mut self, operand: Operand) -> Option<CPUError>;
+    fn atx(&mut self, operand: Operand) -> Option<CPUError>;
+    fn axa(&mut self, operand: Operand) -> Option<CPUError>;
+    fn axs(&mut self, operand: Operand) -> Option<CPUError>;
+    fn dcp(&mut self, operand: Operand) -> Option<CPUError>;
+    fn isc(&mut self, operand: Operand) -> Option<CPUError>;
+    fn kil(&mut self, operand: Operand) -> Option<CPUError>;
+    fn lar(&mut self, operand: Operand) -> Option<CPUError>;
+    fn lax(&mut self, operand: Operand) -> Option<CPUError>;
+    fn rla(&mut self, operand: Operand) -> Option<CPUError>;
+    fn rra(&mut self, operand: Operand) -> Option<CPUError>;
+    fn slo(&mut self, operand: Operand) -> Option<CPUError>;
+    fn sre(&mut self, operand: Operand) -> Option<CPUError>;
+    fn sxa(&mut self, operand: Operand) -> Option<CPUError>;
+    fn sya(&mut self, operand: Operand) -> Option<CPUError>;
+    fn xaa(&mut self, operand: Operand) -> Option<CPUError>;
+    fn xas(&mut self, operand: Operand) -> Option<CPUError>;
 }
 
 impl IllegalOperations for CPU {
-    fn aac(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn aac(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
         self.register_a &= value;
         self.update_zero_and_negative_flags(self.register_a);
         self.set_flag(CPUFlags::Carry, self.get_flag(CPUFlags::Negative));
+
+        None
     }
 
-    fn aax(&mut self, operand: Operand) {
-        let addr = self.retreive_operand_address(operand);
+    fn aax(&mut self, operand: Operand) -> Option<CPUError> {
+        let addr = self.retreive_operand_address(operand).ok()?;
         let value = self.register_x & self.register_a;
         self.update_zero_and_negative_flags(value);
         self.mem_write(addr, value);
+
+        None
     }
 
-    fn arr(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn arr(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
         self.register_a &= value;
-        self.ror(Operand { args: Arguments::None, mode: AddressingMode::NoneAddressing });
+        self.ror(Operand { args: Arguments::None, mode: AddressingMode::NoneAddressing })?;
         self.update_zero_and_negative_flags(self.register_a);
         let bit5: bool = ((self.register_a >> 5) & 1) != 0;
         let bit6: bool = ((self.register_a >> 6) & 1) != 0;
@@ -613,28 +725,36 @@ impl IllegalOperations for CPU {
                 self.set_flag(CPUFlags::Overflow,   false);
             },
         }
+
+        None
     }
 
-    fn asr(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn asr(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
         self.register_a &= value;
         self.lsr(Operand { args: Arguments::None, mode: AddressingMode::NoneAddressing });
+
+        None
     }
 
-    fn atx(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn atx(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
         self.register_a &= value;
-        self.tax(Operand { args: Arguments::None, mode: AddressingMode::NoneAddressing })
+        self.tax(Operand { args: Arguments::None, mode: AddressingMode::NoneAddressing })?;
+
+        None
     }
 
-    fn axa(&mut self, operand: Operand) {
-       let addr = self.retreive_operand_address(operand);
+    fn axa(&mut self, operand: Operand) -> Option<CPUError> {
+       let addr = self.retreive_operand_address(operand).ok()?;
        let value = self.register_a & self.register_x & 7;
        self.mem_write(addr, value);
+
+       None
     }
 
-    fn axs(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn axs(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
         let value_2c = (!value).wrapping_add(1);
 
         self.register_x &= self.register_a;
@@ -644,21 +764,25 @@ impl IllegalOperations for CPU {
         self.register_x = result;
         self.set_flag(CPUFlags::Carry, carry);
         self.update_zero_and_negative_flags(self.register_x);
+
+        None
     }
 
-    fn dcp(&mut self, operand: Operand) {
-        let addr = self.retreive_operand_address(operand);
-        let value = self.mem_read(addr);
+    fn dcp(&mut self, operand: Operand) -> Option<CPUError> {
+        let addr = self.retreive_operand_address(operand).ok()?;
+        let value = self.mem_read(addr).ok()?;
         let dec1 = (!1u8).wrapping_add(1);
 
         let (result, carry, _overflow) = CPU::accumulator_add(value, dec1);
         self.mem_write(addr, result);
         self.set_flag(CPUFlags::Carry, carry);
+
+        None
     }
 
-    fn isc(&mut self, operand: Operand) {
-        let addr = self.retreive_operand_address(operand);
-        let value = self.mem_read(addr).wrapping_add(1);
+    fn isc(&mut self, operand: Operand) -> Option<CPUError> {
+        let addr = self.retreive_operand_address(operand).ok()?;
+        let value = self.mem_read(addr).ok()?.wrapping_add(1);
         self.mem_write(addr, value);
 
         let value2c = (!value).wrapping_add(1);
@@ -668,79 +792,117 @@ impl IllegalOperations for CPU {
         self.set_flag(CPUFlags::Carry, carry);
         self.set_flag(CPUFlags::Overflow, overflow);
         self.update_zero_and_negative_flags(self.register_a);
+
+        None
     }
 
-    fn kil(&mut self, _operand: Operand) {
-       self.halted = true;
+    fn kil(&mut self, _operand: Operand) -> Option<CPUError> {
+       Some(CPUError::HaltError)
     }
 
-    fn lar(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn lar(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
         let result = value & self.stack_pointer;
         self.register_a = result;
         self.register_x = result;
         self.stack_pointer = result;
         self.update_zero_and_negative_flags(result);
+
+        None
     }
 
-    fn lax(&mut self, operand: Operand) {
-        let value = self.retreive_operand_value(operand);
+    fn lax(&mut self, operand: Operand) -> Option<CPUError> {
+        let value = self.retreive_operand_value(operand).ok()?;
         self.register_a = value;
         self.register_x = value;
         self.update_zero_and_negative_flags(value);
+
+        None
     }
 
-    fn rla(&mut self, operand: Operand) {
-        self.rol(operand);
-        self.and(operand);
+    fn rla(&mut self, operand: Operand) -> Option<CPUError> {
+        self.rol(operand)?;
+        self.and(operand)?;
+
+        None
     }
 
-    fn rra(&mut self, operand: Operand) {
-        self.ror(operand);
-        self.adc(operand);
+    fn rra(&mut self, operand: Operand) -> Option<CPUError> {
+        self.ror(operand)?;
+        self.adc(operand)?;
+
+        None
     }
 
-    fn slo(&mut self, operand: Operand) {
-       self.asl(operand);
-       self.ora(operand);
+    fn slo(&mut self, operand: Operand) -> Option<CPUError> {
+       self.asl(operand)?;
+       self.ora(operand)?;
+
+       None
     }
 
-    fn sre(&mut self, operand: Operand) {
-       self.lsr(operand);
-       self.eor(operand);
+    fn sre(&mut self, operand: Operand) -> Option<CPUError> {
+       self.lsr(operand)?;
+       self.eor(operand)?;
+
+       None
     }
 
-    fn sxa(&mut self, operand: Operand) {
-        let addr = self.retreive_operand_address(operand);
+    fn sxa(&mut self, operand: Operand) -> Option<CPUError> {
+        let addr = self.retreive_operand_address(operand).ok()?;
         let high_byte = (addr >> 8) as u8;
         let result = self.register_x & high_byte.wrapping_add(1);
         self.mem_write(addr, result);
+
+        None
     }
 
-    fn sya(&mut self, operand: Operand) {
-        let addr = self.retreive_operand_address(operand);
+    fn sya(&mut self, operand: Operand) -> Option<CPUError> {
+        let addr = self.retreive_operand_address(operand).ok()?;
         let high_byte = (addr >> 8) as u8;
         let result = self.register_y & high_byte.wrapping_add(1);
         self.mem_write(addr, result);
+
+        None
     }
 
-    fn xaa(&mut self, _operand: Operand) {
+    fn xaa(&mut self, _operand: Operand) -> Option<CPUError> {
        self.register_a = 0xFF;
+
+       None
     }
 
-    fn xas(&mut self, operand: Operand) {
+    fn xas(&mut self, operand: Operand) -> Option<CPUError> {
         self.stack_pointer = self.register_x & self.register_a;
 
-        let addr = self.retreive_operand_address(operand);
+        let addr = self.retreive_operand_address(operand).ok()?;
         let high_byte = (addr >> 8) as u8;
         let result = self.stack_pointer & high_byte.wrapping_add(1);
         self.mem_write(addr, result);
+
+        None
     }
 }
 
 impl Default for CPU {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl BitFlag<CPUFlags> for CPU {
+
+    fn get_flag(&self, flag: CPUFlags) -> bool {
+        let bit = (self.status >> flag as u8) & 1;
+        
+        bit != 0
+    }
+
+    fn set_flag(&mut self, flag: CPUFlags, value: bool) {
+        let result: u8 = (value as u8) << (flag as u8);
+
+        self.status &= !(1 << (flag as u8));
+        self.status |= result;
     }
 }
 
@@ -760,11 +922,17 @@ impl CPU {
         }
     }
 
-    pub fn load(&mut self, rom: Rom, start_pointer: Option<u16>) {
+    pub fn load(&mut self, rom: Rom, start_pointer: Option<u16>) -> Option<MemReadError> {
         println!("Loading Rom:");
+
         rom.print_rom();
         self.bus.load_rom(rom);
-        if let Some(pointer) = start_pointer { self.program_counter = self.mem_read_u16(pointer) }
+
+        if let Some(pointer) = start_pointer { 
+            self.program_counter = self.mem_read_u16(pointer).ok()?;
+        }
+
+        None
     }
 
     pub fn load_and_run(&mut self, rom: Rom, start_pointer: Option<u16>) {
@@ -781,7 +949,7 @@ impl CPU {
         self.run_with_callback(|_| {});
     }
 
-    pub fn run_with_callback<F>(&mut self, mut callback: F)
+    pub fn run_with_callback<F>(&mut self, mut callback: F) -> Option<CPUError>
     where 
         F: FnMut(&mut CPU),
     {
@@ -898,20 +1066,36 @@ impl CPU {
         let mut file_log = FileLog::new().expect("Failed to open file.");
 
         loop {
-            let bytecode = self.mem_read(self.program_counter);
+            let bytecode = self.mem_read(self.program_counter).ok()?;
 
             let opcode = opcodes.get(&bytecode).unwrap_or_else(|| panic!("CPU::run -- Missing opcode: {:x}", bytecode));
             self.program_counter += 1;
             let starting_program_counter = self.program_counter;
 
-            if opcode.instruction == "BRK" || self.halted {
-                return
+            if opcode.instruction == "BRK" {
+                return Some(CPUError::BreakError)
+            }
+
+            if self.halted {
+                return Some(CPUError::HaltError)
             }
 
             let args = match opcode.len-1 {
                 0 => Arguments::None,
-                1 => Arguments::One(self.mem_read(self.program_counter)),
-                2 => Arguments::Two(self.mem_read_u16(self.program_counter)),
+                1 => {
+                    let parse_u8 = self.mem_read(self.program_counter);
+                    if let Err(e) = parse_u8 {
+                        return Some(CPUError::from(e));
+                    }
+                    Arguments::One(parse_u8.unwrap())
+                },
+                2 => {
+                    let parse_u16 = self.mem_read_u16(self.program_counter);
+                    if let Err(e) = parse_u16 {
+                        return Some(CPUError::from(e));
+                    }
+                    Arguments::Two(parse_u16.unwrap())
+                },
                 _ => panic!("Unsupported length for opcode: {:X}", bytecode),
             };
             //term_log.log_opcode_running(opcode_info, &args, self);
@@ -933,22 +1117,8 @@ impl CPU {
     // HELPER FUNCTIONS
     // ================
 
-    fn get_flag(&self, flag: CPUFlags) -> bool {
-        let bit = (self.status >> flag as u8) & 1;
-        
-        bit != 0
-    }
-
-    fn set_flag(&mut self, flag: CPUFlags, value: bool) {
-        let result: u8 = (value as u8) << (flag as u8);
-
-        self.status &= !(1 << (flag as u8));
-        self.status |= result;
-    }
-
-    fn branch_for_flag_value(&mut self, flag: CPUFlags, value: bool) {
+    fn branch_for_flag_value(&mut self, flag: CPUFlags, value: bool, offset: u8) {
         if self.get_flag(flag) == value {
-            let offset = self.mem_read(self.program_counter);
             self.offset_program_counter(offset);
         }
     }
@@ -964,9 +1134,9 @@ impl CPU {
         self.set_flag(CPUFlags::Negative, (value & 0b1000_0000) != 0);
     }
 
-    fn retreive_operand_value(&self, operand: Operand) -> u8 {
+    fn retreive_operand_value(&mut self, operand: Operand) -> Result<u8, MemReadError> {
         match (operand.mode, operand.args) {
-            (AddressingMode::Immediate, Arguments::One(arg)) => arg,
+            (AddressingMode::Immediate, Arguments::One(arg)) => Ok(arg),
             (AddressingMode::ZeroPage, Arguments::One(arg)) => self.mem_read_zero_page(arg, 0),
             (AddressingMode::ZeroPageX, Arguments::One(arg)) => self.mem_read_zero_page(arg, self.register_x),
             (AddressingMode::ZeroPageY, Arguments::One(arg)) => self.mem_read_zero_page(arg, self.register_y),
@@ -974,13 +1144,13 @@ impl CPU {
             (AddressingMode::AbsoluteX, Arguments::Two(arg)) => self.mem_read_absolute(arg, self.register_x),
             (AddressingMode::AbsoluteY, Arguments::Two(arg)) => self.mem_read_absolute(arg, self.register_y),
             (AddressingMode::IndirectX, Arguments::One(arg)) => {
-                let low = self.mem_read_zero_page(arg, self.register_x);
-                let high = self.mem_read_zero_page(arg, self.register_x+1);
+                let low = self.mem_read_zero_page(arg, self.register_x)?;
+                let high = self.mem_read_zero_page(arg, self.register_x+1)?;
 
                 self.mem_read(Arguments::combine_args(low, high))
             },
             (AddressingMode::IndirectY, Arguments::One(arg)) => {
-                let base = self.mem_read_u16(arg as u16);
+                let base = self.mem_read_u16(arg as u16)?;
 
                 self.mem_read_absolute(base, self.register_y)
             },
@@ -988,34 +1158,34 @@ impl CPU {
         }
     }
 
-    fn retreive_operand_address(&self, operand: Operand) -> u16 {
+    fn retreive_operand_address(&mut self, operand: Operand) -> Result<u16, MemReadError> {
         match (operand.mode, operand.args) {
-            (AddressingMode::ZeroPage, Arguments::One(arg)) => arg as u16,
-            (AddressingMode::ZeroPageX, Arguments::One(arg)) => arg.wrapping_add(self.register_x) as u16,
-            (AddressingMode::ZeroPageY, Arguments::One(arg)) => arg.wrapping_add(self.register_y) as u16,
-            (AddressingMode::Absolute, Arguments::Two(arg)) => arg,
-            (AddressingMode::AbsoluteX, Arguments::Two(arg)) => arg.wrapping_add(self.register_x as u16),
-            (AddressingMode::AbsoluteY, Arguments::Two(arg)) => arg.wrapping_add(self.register_y as u16),
+            (AddressingMode::ZeroPage, Arguments::One(arg)) => Ok(arg as u16),
+            (AddressingMode::ZeroPageX, Arguments::One(arg)) => Ok(arg.wrapping_add(self.register_x) as u16),
+            (AddressingMode::ZeroPageY, Arguments::One(arg)) => Ok(arg.wrapping_add(self.register_y) as u16),
+            (AddressingMode::Absolute, Arguments::Two(arg)) => Ok(arg),
+            (AddressingMode::AbsoluteX, Arguments::Two(arg)) => Ok(arg.wrapping_add(self.register_x as u16)),
+            (AddressingMode::AbsoluteY, Arguments::Two(arg)) => Ok(arg.wrapping_add(self.register_y as u16)),
             (AddressingMode::IndirectX, Arguments::One(arg)) => {
-                let low = self.mem_read_zero_page(arg, self.register_x);
-                let high = self.mem_read_zero_page(arg, self.register_x+1);
+                let low = self.mem_read_zero_page(arg, self.register_x)?;
+                let high = self.mem_read_zero_page(arg, self.register_x+1)?;
                 
-                Arguments::combine_args(low, high)
+                Ok(Arguments::combine_args(low, high))
             },
             (AddressingMode::IndirectY, Arguments::One(arg)) => {
-                let base = self.mem_read_u16(arg as u16);
+                let base = self.mem_read_u16(arg as u16)?;
 
-                base.wrapping_add(self.register_y as u16)
+                Ok(base.wrapping_add(self.register_y as u16))
             },
             _ => panic!("retreive_operand_address -- Mode {:?} is not supported!", operand.mode),
         }
     }
 
-    fn mem_read_zero_page(&self, base: u8, offset: u8) -> u8 {
+    fn mem_read_zero_page(&mut self, base: u8, offset: u8) -> Result<u8, MemReadError> {
         self.mem_read(base.wrapping_add(offset) as u16)
     }
 
-    fn mem_read_absolute(&self, base: u16, offset: u8) -> u8 {
+    fn mem_read_absolute(&mut self, base: u16, offset: u8) -> Result<u8, MemReadError> {
         self.mem_read(base.wrapping_add(offset as u16))
     }
 
@@ -1037,17 +1207,17 @@ impl CPU {
         self.push_stack(low);
     }
 
-    fn pop_stack(&mut self) -> u8 {
+    fn pop_stack(&mut self) -> Result<u8, MemReadError> {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
         
         self.mem_read(CPU::get_stack_address(self.stack_pointer))
     }
 
-    fn pop_stack_u16(&mut self) -> u16 {
-        let low = self.pop_stack();
-        let high = self.pop_stack();
+    fn pop_stack_u16(&mut self) -> Result<u16, MemReadError> {
+        let low = self.pop_stack()?;
+        let high = self.pop_stack()?;
 
-        ((high as u16) << 8) | low as u16
+        Ok(((high as u16) << 8) | low as u16)
     }
 
     pub fn get_ppu_cycle(&self) -> u32 {
@@ -1068,7 +1238,7 @@ impl CPU {
 
 #[cfg(test)]
 mod test {
-    use crate::bus;
+    use crate::compute::bus;
 
     use super::*;
 
@@ -1400,7 +1570,7 @@ mod test {
         const ADDR: u16 = 0x0000;
         cpu.mem_write(ADDR, 0x02);
         cpu.build_rom_load_and_run(vec![0xC6, 0x00, 0x00], None);
-        assert!(cpu.mem_read(ADDR)==0x01);
+        assert!(cpu.mem_read(ADDR).unwrap()==0x01);
     }
 
     #[test]
@@ -1409,7 +1579,7 @@ mod test {
         const ADDR: u16 = 0x0000;
         cpu.mem_write(ADDR, 0x00);
         cpu.build_rom_load_and_run(vec![0xE6, 0x00, 0x00], None);
-        assert!(cpu.mem_read(ADDR)==0x01);
+        assert!(cpu.mem_read(ADDR).unwrap()==0x01);
     }
 
     #[test]
@@ -1481,7 +1651,7 @@ mod test {
     fn test_jsr() {
         let mut cpu = test_run(vec![0xEA, 0xEA, 0x20, 0x06, 0x80, 0x00, 0xEA, 0x00]);
         assert!(cpu.program_counter == bus::ROM+8);
-        let stack_value = cpu.pop_stack_u16();
+        let stack_value = cpu.pop_stack_u16().unwrap();
         assert!(stack_value == 0x8006-1);
     }
 
@@ -1528,7 +1698,7 @@ mod test {
         let mut cpu = CPU::new();
         cpu.status = 0x0;
         cpu.build_rom_load_and_run(vec![0xA9, 0x02, 0x48, 0x00], None);
-        let value = cpu.pop_stack();
+        let value = cpu.pop_stack().unwrap();
         assert!(value == 0x02);
     }
 
@@ -1538,7 +1708,7 @@ mod test {
         cpu.status = 0x0;
         cpu.set_flag(CPUFlags::Zero, true);
         cpu.build_rom_load_and_run(vec![0x08, 0x00], None);
-        let stack_value = cpu.pop_stack();
+        let stack_value = cpu.pop_stack().unwrap();
         assert!(stack_value == (0x02 | (1 << CPUFlags::Break as u8) | (1 << CPUFlags::Break2 as u8)));
     }
 
@@ -1620,14 +1790,14 @@ mod test {
 
     #[test]
     fn test_sta_0x01() {
-        let cpu = test_run(vec![0xA9, 0x01, 0x85, 0x00, 0x00]);
-        assert!(cpu.mem_read(0x00) == 0x01);
+        let mut cpu = test_run(vec![0xA9, 0x01, 0x85, 0x00, 0x00]);
+        assert!(cpu.mem_read(0x00).unwrap() == 0x01);
     }
 
     #[test]
     fn test_stx_0x01() {
-        let cpu = test_run(vec![0xA2, 0x01, 0x86, 0x00, 0x00]);
-        assert!(cpu.mem_read(0x00) == 0x01);
+        let mut cpu = test_run(vec![0xA2, 0x01, 0x86, 0x00, 0x00]);
+        assert!(cpu.mem_read(0x00).unwrap() == 0x01);
     }
 
     #[test]
@@ -1638,8 +1808,8 @@ mod test {
 
     #[test]
     fn test_sty_0x01() {
-        let cpu = test_run(vec![0xA0, 0x01, 0x84, 0x00, 0x00]);
-        assert!(cpu.mem_read(0x00) == 0x01);
+        let mut cpu = test_run(vec![0xA0, 0x01, 0x84, 0x00, 0x00]);
+        assert!(cpu.mem_read(0x00).unwrap() == 0x01);
     }
 
     #[test]
@@ -1690,7 +1860,7 @@ mod test {
         cpu.register_x = 0x83;
         cpu.register_a = 0x82;
         cpu.build_rom_load_and_run(vec![0x8F, 0x00, 0x00, 0x00], None);
-        assert!(cpu.mem_read(0x0000) == (0x83 & 0x82));
+        assert!(cpu.mem_read(0x0000).unwrap() == (0x83 & 0x82));
         assert!(cpu.get_flag(CPUFlags::Negative));
     }
 
@@ -1725,6 +1895,6 @@ mod test {
         cpu.register_a = 0x83;
         cpu.register_x = 0x82;
         cpu.build_rom_load_and_run(vec![0x9F, 0x00, 0x00, 0x00], None);
-        assert!(cpu.mem_read(0x0000) == 0x2);
+        assert!(cpu.mem_read(0x0000).unwrap() == 0x2);
     }
 }

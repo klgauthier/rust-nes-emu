@@ -1,6 +1,6 @@
 // Copyright 2025 Kevin Gauthier. All rights reserved.
 
-use crate::cartridge::Rom;
+use crate::{cartridge::{Mirroring, Rom}, graphics::ppu::PPU, utils::errors::MemReadError};
 
 const RAM: u16 = 0x0000;
 const RAM_MIRROR_END: u16 = 0x01FFF;
@@ -10,14 +10,14 @@ pub const ROM: u16 = 0x8000;
 
 pub trait Memory 
 {
-    fn mem_read(&self, addr: u16) -> u8;
+    fn mem_read(&mut self, addr: u16) -> Result<u8, MemReadError>;
     fn mem_write(&mut self, addr: u16, data: u8);
 
-    fn mem_read_u16(&self, addr: u16) -> u16 {
-        let low = self.mem_read(addr) as u16;
-        let high = self.mem_read(addr+1) as u16;
+    fn mem_read_u16(&mut self, addr: u16) -> Result<u16, MemReadError> {
+        let low = self.mem_read(addr)? as u16;
+        let high = self.mem_read(addr+1)? as u16;
 
-        (high << 8) | low
+        Ok((high << 8) | low)
     }
 
     fn mem_write_u16(&mut self, addr: u16, data: u16) {
@@ -31,6 +31,7 @@ pub trait Memory
 pub struct Bus {
     cpu_vram: [u8; 2048],
     rom: Option<Rom>,
+    ppu: PPU,
 }
 
 impl Default for Bus {
@@ -41,21 +42,25 @@ impl Default for Bus {
 
 impl Bus {
     pub fn new() -> Self {
+        let ppu = PPU::new(vec![], Mirroring::FourScreen);
         Bus {
             cpu_vram: [0; 2048],
             rom: None,
+            ppu,
         }
     }
 
     pub fn load_rom(&mut self, rom: Rom) {
+        self.ppu.chr_rom = rom.chr_rom.clone();
+        self.ppu.mirroring = rom.screen_mirroring;
         self.rom = Some(rom);
     }
 
-    pub fn read_prg_rom(&self, addr: u16) -> u8 {
+    pub fn read_prg_rom(&self, addr: u16) -> Result<u8, MemReadError> {
         match &self.rom {
             None => {
                 println!("Attempting to read with no loaded Rom. Returning 0x00.");
-                0x00
+                Err(MemReadError::new(addr))
             }
             Some(rom) => {
                 let mut adjusted_addr = addr - ROM;
@@ -64,10 +69,10 @@ impl Bus {
                 }
 
                 if (adjusted_addr as usize) < rom.prg_rom.len() {
-                    rom.prg_rom[adjusted_addr as usize]
+                    Ok(rom.prg_rom[adjusted_addr as usize])
                 }
                 else {
-                    0x00
+                    Ok(0x00)
                 }
 
             }
@@ -76,13 +81,17 @@ impl Bus {
 }
 
 impl Memory for Bus {
-    fn mem_read(&self, addr: u16) -> u8 {
+    fn mem_read(&mut self, addr: u16) -> Result<u8, MemReadError> {
         match addr {
             RAM ..= RAM_MIRROR_END => {
                 //println!("Bus::mem_read -- reading from ram at addr: {:X}", addr);
                 let mirror_down_addr = addr & 0b00000111_11111111;
-                self.cpu_vram[mirror_down_addr as usize]
+                Ok(self.cpu_vram[mirror_down_addr as usize])
             }
+            0x2000 | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => {
+                panic!("Attempt to read from write-only PPU address {:X}", addr);
+            }
+            0x2007 => self.ppu.read_data(),
 
             PPU_REGISTERS ..= PPU_REGISTERS_MIRROR_END => {
                 let _mirror_down_addr = addr & 0b00100000_00000111;
@@ -95,7 +104,7 @@ impl Memory for Bus {
 
             _=> {
                 println!("Bus::mem_read -- ignoring memory access at {:X}", addr);
-                0
+                Ok(0)
             }
         }
     }

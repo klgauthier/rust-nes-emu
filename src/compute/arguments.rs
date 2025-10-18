@@ -1,3 +1,5 @@
+// Copyright 2025 Kevin Gauthier. All rights reserved.
+
 use std::fmt::Display;
 
 #[derive(Clone, Copy, Debug)]

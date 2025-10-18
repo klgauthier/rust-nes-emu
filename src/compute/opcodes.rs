@@ -1,6 +1,6 @@
 // Copyright 2025 Kevin Gauthier. All rights reserved.
 
-use crate::cpu::AddressingMode;
+use crate::compute::cpu::AddressingMode;
 use std::collections::HashMap;
 
 #[derive(Eq, PartialEq, Hash)]

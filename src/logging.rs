@@ -4,7 +4,10 @@ use std::{fs::File, io::{BufWriter, Write}, path::PathBuf};
 
 use chrono::{Datelike, Local, Timelike};
 
-use crate::{bus::Memory, cpu::{AddressingMode, CPU}, opcodes::OpCode, arguments::Arguments};
+use crate::compute::bus::Memory;
+use crate::compute::cpu::{AddressingMode, CPU};
+use crate::compute::opcodes::OpCode;
+use crate::compute::arguments::Arguments;
 
 const LOG_FOLDER_PATH: &str = "logs";
 
@@ -21,13 +24,9 @@ pub enum ANSIColor {
     White   = 97
 }
 
-
-
-
-
 pub trait Logger {
     fn log_opcode(&mut self, address: u16, opcode: &OpCode, args: &Arguments);
-    fn log_opcode_running(&mut self, opcode: &OpCode, args: &Arguments, cpu: &CPU);
+    fn log_opcode_running(&mut self, opcode: &OpCode, args: &Arguments, cpu: &mut CPU);
 
     fn format_address(address: u16) -> String { format!("{:0>4X}", address) }
 
@@ -60,42 +59,42 @@ pub trait Logger {
         }
     }
 
-    fn format_opcode_working_addresses(opcode: &OpCode, args: &Arguments, cpu: &CPU) -> String {
+    fn format_opcode_working_addresses(opcode: &OpCode, args: &Arguments, cpu: &mut CPU) -> String {
         let formatted = match opcode.mode {
             AddressingMode::ZeroPage => {
-                format!("= {:0>2X}", cpu.mem_read(args.get_arg1().unwrap() as u16))
+                format!("= {:0>2X}", cpu.mem_read(args.get_arg1().unwrap() as u16).unwrap())
             },
             AddressingMode::ZeroPageX => {
                 let addr = args.get_arg1().unwrap().wrapping_add(cpu.register_x) as u16;
-                format!("@ {:0>4X} = {:0>2X}", addr, cpu.mem_read(addr))
+                format!("@ {:0>4X} = {:0>2X}", addr, cpu.mem_read(addr).unwrap())
             },
             AddressingMode::ZeroPageY => {
                 let addr = args.get_arg1().unwrap().wrapping_add(cpu.register_y) as u16;
-                format!("@ {:0>4X} = {:0>2X}", addr, cpu.mem_read(addr))
+                format!("@ {:0>4X} = {:0>2X}", addr, cpu.mem_read(addr).unwrap())
             },
             AddressingMode::Absolute => {
                 let operand_addr = match args { Arguments::Two(a) => a, _ => unreachable!()};
-                format!("= {:0>2X}", cpu.mem_read(*operand_addr))
+                format!("= {:0>2X}", cpu.mem_read(*operand_addr).unwrap())
             },
             AddressingMode::AbsoluteX => {
                 let operand_addr = match args { Arguments::Two(a) => a, _ => unreachable!()};
                 let addr = operand_addr.wrapping_add(cpu.register_x as u16);
-                format!("@ {:0>4X} = {:0>2X}", addr, cpu.mem_read(addr))
+                format!("@ {:0>4X} = {:0>2X}", addr, cpu.mem_read(addr).unwrap())
             },
             AddressingMode::AbsoluteY => {
                 let operand_addr = match args { Arguments::Two(a) => a, _ => unreachable!()};
                 let addr = operand_addr.wrapping_add(cpu.register_y as u16);
-                format!("@ {:0>4X} = {:0>2X}", addr, cpu.mem_read(addr))
+                format!("@ {:0>4X} = {:0>2X}", addr, cpu.mem_read(addr).unwrap())
             },
             AddressingMode::IndirectX => {
                 let addr_offset = args.get_arg1().unwrap().wrapping_add(cpu.register_x);
                 let addr = addr_offset as u16;
-                format!("@ {:0>2X} = {:0>4X} = {:0>2X}", addr_offset, addr, cpu.mem_read(addr))
+                format!("@ {:0>2X} = {:0>4X} = {:0>2X}", addr_offset, addr, cpu.mem_read(addr).unwrap())
             },
             AddressingMode::IndirectY => {
-                let operand_addr = match args { Arguments::One(a) => cpu.mem_read_u16(*a as u16), _ => unreachable!()};
+                let operand_addr = match args { Arguments::One(a) => cpu.mem_read_u16(*a as u16).unwrap(), _ => unreachable!()};
                 let addr = operand_addr.wrapping_add(cpu.register_y as u16);
-                format!("= {:0>4X} @ {:0>4X} = {:0>2X}", operand_addr, addr, cpu.mem_read(addr))
+                format!("= {:0>4X} @ {:0>4X} = {:0>2X}", operand_addr, addr, cpu.mem_read(addr).unwrap())
             },
             AddressingMode::NoneAddressing | AddressingMode::Immediate => {
                 "".to_owned()
@@ -105,7 +104,7 @@ pub trait Logger {
         format!("{:<16}", formatted)
     }
 
-    fn format_args_and_working_addresses(args: &Arguments, opcode: &OpCode, cpu: &CPU) -> String {
+    fn format_args_and_working_addresses(args: &Arguments, opcode: &OpCode, cpu: &mut CPU) -> String {
         let combined = format!("{} {}", Self::format_args(args, &opcode.mode), Self::format_opcode_working_addresses(opcode, args, cpu));
         format!("{:<26}", combined)
     }
@@ -183,7 +182,7 @@ impl Logger for FileLog {
         self.log_write(&line);
     }
 
-    fn log_opcode_running(&mut self, opcode: &OpCode, args: &Arguments, cpu: &CPU) {
+    fn log_opcode_running(&mut self, opcode: &OpCode, args: &Arguments, cpu: &mut CPU) {
         let line = format!("{addr} {opcode_hex_data} {opcode} {working_addrs} {cpu_state}",
             addr = Self::format_address(cpu.program_counter),
             opcode_hex_data = Self::format_opcode_hex_data(opcode, args),
@@ -237,7 +236,7 @@ impl Logger for TerminalLog {
         self.log_write(&line);
     }
 
-    fn log_opcode_running(&mut self, opcode: &OpCode, args: &Arguments, cpu: &CPU) {
+    fn log_opcode_running(&mut self, opcode: &OpCode, args: &Arguments, cpu: &mut CPU) {
         let line = format!("{addr} {opcode_hex_data} {opcode} {working_addrs} {cpu_state}",
             addr = Self::format_address(cpu.program_counter),
             opcode_hex_data = Self::format_opcode_hex_data(opcode, args),

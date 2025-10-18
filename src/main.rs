@@ -1,15 +1,16 @@
 // Copyright 2025 Kevin Gauthier. All rights reserved.
 
-pub mod bus;
 pub mod cartridge;
-pub mod cpu;
 pub mod logging;
-pub mod opcodes;
-pub mod rom_format;
-pub mod arguments;
 
-use bus::Memory;
-use cpu::CPU;
+pub mod compute;
+pub mod rom_format;
+pub mod graphics;
+pub mod utils;
+
+use crate::compute::bus::Memory;
+use crate::compute::cpu::CPU;
+
 use rand::Rng;
 use sdl2::event::Event;
 use sdl2::EventPump;
@@ -64,8 +65,7 @@ fn main() {
             let timeout = Duration::from_millis(32);
             std::thread::park_timeout(timeout);
         }
-
-    });
+    }).unwrap();
 }
 
 fn load_binary_from_file(path: &Path) -> Vec<u8> {
@@ -116,11 +116,11 @@ fn color(byte: u8) -> Color {
     }
 }
 
-fn read_screen_state(cpu: &CPU, frame: &mut [u8; 32*3*32]) -> bool {
+fn read_screen_state(cpu: &mut CPU, frame: &mut [u8; 32*3*32]) -> bool {
     let mut frame_idx = 0;
     let mut update = false;
     for i in 0x0200..0x0600 {
-        let color_idx = cpu.mem_read(i as u16);
+        let color_idx = cpu.mem_read(i as u16).unwrap();
         let (b1, b2, b3) = color(color_idx).rgb();
         if frame[frame_idx] != b1 || frame[frame_idx+1] != b2 || frame[frame_idx+2] != b3 {
             frame[frame_idx] = b1;

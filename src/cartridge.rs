@@ -2,12 +2,13 @@
 
 use std::collections::HashMap;
 
+use crate::compute::arguments::Arguments;
+use crate::compute::cpu::AddressingMode;
+use crate::compute::opcodes::{self, OpCode};
 use crate::logging::{FileLog, Logger, TerminalLog};
 use crate::rom_format::format_ines1::INes1;
-use crate::opcodes::{self, OpCode};
-use crate::arguments::Arguments;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Mirroring {
     Vertical,
     Horizontal,
@@ -22,7 +23,7 @@ pub struct Rom {
     pub prg_rom: Vec<u8>,
     pub chr_rom: Vec<u8>,
     pub mapper: u8,
-    pub screen_mirroing: Mirroring
+    pub screen_mirroring: Mirroring
 }
 
 impl Rom {
@@ -37,7 +38,7 @@ impl Rom {
                     prg_rom: imported.prg_rom_data, 
                     chr_rom: imported.chr_rom_data, 
                     mapper: imported.mapper_type, 
-                    screen_mirroing: imported.mirroring_type 
+                    screen_mirroring: imported.mirroring_type 
                 })
             }
 
@@ -50,7 +51,7 @@ impl Rom {
             prg_rom: program.to_vec(), 
             chr_rom: Vec::new(), 
             mapper: 0x00, 
-            screen_mirroing: Mirroring::Horizontal, 
+            screen_mirroring: Mirroring::Horizontal, 
 
         }
     }
@@ -132,7 +133,7 @@ impl Rom {
 
         match fetch_opcode {
             Some(oc) => OpCode::new(oc.code, oc.instruction, oc.len, oc.cycles,  oc.mode),
-            None => OpCode::new(instr, "???", 1, 1, crate::cpu::AddressingMode::NoneAddressing)
+            None => OpCode::new(instr, "???", 1, 1, AddressingMode::NoneAddressing)
         }
     }
 }
