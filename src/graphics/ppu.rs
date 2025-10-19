@@ -1,8 +1,16 @@
 // Copyright 2025 Kevin Gauthier. All rights reserved.
 
 use crate::cartridge::Mirroring;
+use crate::graphics::control_register::ControlFlags;
+use crate::graphics::mask_register::MaskRegister;
+use crate::graphics::status_register::{StatusFlags, StatusRegister};
 use crate::graphics::{addr_register::AddrRegister, control_register::ControlRegister};
+use crate::utils::bitflags::BitFlag;
 use crate::utils::errors::MemReadError;
+
+const HBLANK_CYCLE: u16 = 341;
+const VBLANK_INTERRUPT: u16 = 241;
+const VBLANK_CYCLE: u16 = 262;
 
 pub struct PPU {
     pub chr_rom: Vec<u8>,
@@ -11,10 +19,15 @@ pub struct PPU {
     pub oam_data: [u8; 256],
     pub mirroring: Mirroring,
 
-    internal_data_buf: u8,
-
     addr: AddrRegister,
     pub ctrl: ControlRegister,
+    status: StatusRegister,
+    mask: MaskRegister,
+
+    internal_data_buf: u8,
+    pub cycles: usize,
+    scanline: u16,
+    nmi_interrupt_active: bool,
 }
 
 impl PPU {
@@ -28,6 +41,43 @@ impl PPU {
             internal_data_buf: 0,
             addr: AddrRegister::new(),
             ctrl: ControlRegister::new(),
+            status: StatusRegister::new(),
+            mask: MaskRegister::new(),
+            cycles: 0,
+            scanline: 0,
+            nmi_interrupt_active: false
+        }
+    }
+
+    pub fn tick(&mut self, cycles_increment: u8) {
+        self.cycles += cycles_increment as usize;
+
+        if self.cycles >= HBLANK_CYCLE as usize {
+            self.cycles %= HBLANK_CYCLE as usize;
+            self.scanline += 1;
+
+            if (self.scanline % VBLANK_INTERRUPT) == 0 {
+                if self.ctrl.get_flag(ControlFlags::GenerateNMI) {
+                    self.status.set_flag(StatusFlags::AtVBlank, true);
+                    todo!("Trigger an NMI Interrupt")
+                }
+            }
+
+            if self.scanline >= VBLANK_CYCLE {
+                self.scanline = 0;
+                self.status.set_flag(StatusFlags::AtVBlank, false);
+            }
+        }
+    }
+
+    pub fn poll_nmi_interrupt(&mut self) -> bool {
+        match self.nmi_interrupt_active {
+            true => {
+                self.nmi_interrupt_active = false;
+
+                true
+            },
+            false => false,
         }
     }
 
@@ -36,7 +86,12 @@ impl PPU {
     }
 
     fn write_to_ctrl(&mut self, value: u8) {
+        let previous_nmi_status = self.ctrl.get_flag(ControlFlags::GenerateNMI);
         self.ctrl.update(value);
+
+        if !previous_nmi_status && self.ctrl.get_flag(ControlFlags::GenerateNMI) && self.status.get_flag(StatusFlags::AtVBlank) {
+            self.nmi_interrupt_active = true;
+        }
     }
 
     fn increment_vram_addr(&mut self) {

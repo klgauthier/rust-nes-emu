@@ -19,9 +19,8 @@ pub struct CPU
     pub stack_pointer: u8,
     pub bus: Bus,
 
-    pub cycle: u32,
-
-    pub halted: bool,
+    delay_branch_succeed: bool,
+    delay_page_crossed: bool,
 }
 
 const ADDR_STACK_TOP : u16 = 0x01FF;
@@ -247,7 +246,7 @@ impl Operations for CPU {
         self.program_counter = self.mem_read_u16(0xFFFE).ok()?;
         self.set_flag(CPUFlags::Break, true);
 
-        None
+        Some(CPUError::BreakError)
     }
 
     fn bvc(&mut self, operand: Operand) -> Option<CPUError> {
@@ -916,9 +915,9 @@ impl CPU {
             program_counter: bus::ROM,
             stack_pointer: (ADDR_STACK_TOP - ADDR_STACK_BOTTOM) as u8,
             bus: Bus::new(),
-            cycle: 0,
 
-            halted: false,
+            delay_branch_succeed: false,
+            delay_page_crossed: false
         }
     }
 
@@ -1066,19 +1065,15 @@ impl CPU {
         let mut file_log = FileLog::new().expect("Failed to open file.");
 
         loop {
+            if self.bus.poll_nmi_interrupt() {
+                self.interrupt_nmi()?;
+            }
+
             let bytecode = self.mem_read(self.program_counter).ok()?;
 
             let opcode = opcodes.get(&bytecode).unwrap_or_else(|| panic!("CPU::run -- Missing opcode: {:x}", bytecode));
             self.program_counter += 1;
             let starting_program_counter = self.program_counter;
-
-            if opcode.instruction == "BRK" {
-                return Some(CPUError::BreakError)
-            }
-
-            if self.halted {
-                return Some(CPUError::HaltError)
-            }
 
             let args = match opcode.len-1 {
                 0 => Arguments::None,
@@ -1098,19 +1093,50 @@ impl CPU {
                 },
                 _ => panic!("Unsupported length for opcode: {:X}", bytecode),
             };
+            
             //term_log.log_opcode_running(opcode_info, &args, self);
             file_log.log_opcode_running(opcode, &args, self);
 
-            fn_map[&bytecode](self, Operand::new(args, opcode.mode));
+            match fn_map[&bytecode](self, Operand::new(args, opcode.mode)) {
+                Some(err) => match err {
+                    CPUError::BreakError => {
+                        let new_addr = self.bus.mem_read_u16(bus::INTERRUPT_VECTOR_IRQ).ok()?;
+
+                        let brk_loop_check = self.mem_read(new_addr).ok()?;
+                        if brk_loop_check == 0x00 {
+                            return Some(CPUError::BreakError)
+                        }
+
+                        self.program_counter = new_addr;
+                    },
+                    _ => return Some(err),
+                }
+                None => ()
+            }
 
             if starting_program_counter == self.program_counter {
                 self.program_counter += (opcode.len-1) as u16;
             }
 
-            self.cycle += opcode.cycles as u32;
+            self.bus.tick(opcode.cycles);
 
             callback(self);
         }
+    }
+
+    fn interrupt_nmi(&mut self) -> Option<MemReadError> {
+        self.push_stack_u16(self.program_counter);
+        let mut flag = self.status.clone();
+        flag &= !(1 << CPUFlags::Break2 as u8 | 1 << CPUFlags::Break as u8);
+        flag |= 0b10 << CPUFlags::Break as u8;
+
+        self.push_stack(flag);
+        self.set_flag(CPUFlags::InterruptDisable, true);
+
+        self.bus.tick(2);
+        self.program_counter = self.mem_read_u16(0xFFFA).ok()?;
+
+        None
     }
 
     // ================
@@ -1218,10 +1244,6 @@ impl CPU {
         let high = self.pop_stack()?;
 
         Ok(((high as u16) << 8) | low as u16)
-    }
-
-    pub fn get_ppu_cycle(&self) -> u32 {
-        self.cycle * 7
     }
 
     fn get_stack_address(stack_pointer: u8) -> u16 {

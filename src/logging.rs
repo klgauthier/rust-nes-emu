@@ -110,8 +110,8 @@ pub trait Logger {
     }
 
     fn format_cpu_state(cpu: &CPU) -> String {
-        let ppu1 = cpu.get_ppu_cycle() / 1000;
-        let ppu2 = cpu.get_ppu_cycle() % 1000;
+        let ppu1 = cpu.bus.get_ppu_cycles() / 1000;
+        let ppu2 = cpu.bus.get_ppu_cycles() % 1000;
         
         format!("A:{reg_a:0>2X} X:{reg_x:0>2X} Y:{reg_y:0>2X} P:{status:0>2X} P:{status:0>2X} SP:{stack:0>2X} PPU:{ppu1:>3},{ppu2:>3} CYC:{cycle}",
             reg_a   = cpu.register_a,
@@ -121,7 +121,7 @@ pub trait Logger {
             stack   = cpu.stack_pointer,
             ppu1    = ppu1,
             ppu2    = ppu2,
-            cycle   = cpu.cycle
+            cycle   = cpu.bus.cycles
         )
     }
 }

@@ -8,6 +8,10 @@ const PPU_REGISTERS: u16 = 0x2000;
 const PPU_REGISTERS_MIRROR_END: u16 = 0x3FFF;
 pub const ROM: u16 = 0x8000;
 
+pub const INTERRUPT_VECTOR_NMI: u16 = 0xFFFA;
+pub const INTERRUPT_VECTOR_RESET: u16 = 0xFFFC;
+pub const INTERRUPT_VECTOR_IRQ: u16 = 0xFFFE;
+
 pub trait Memory 
 {
     fn mem_read(&mut self, addr: u16) -> Result<u8, MemReadError>;
@@ -32,6 +36,8 @@ pub struct Bus {
     cpu_vram: [u8; 2048],
     rom: Option<Rom>,
     ppu: PPU,
+
+    pub cycles: usize,
 }
 
 impl Default for Bus {
@@ -47,7 +53,17 @@ impl Bus {
             cpu_vram: [0; 2048],
             rom: None,
             ppu,
+            cycles: 0,
         }
+    }
+    
+    pub fn tick(&mut self, cycles_increment: u8) {
+        self.cycles += cycles_increment as usize;
+        self.ppu.tick(cycles_increment * 3);
+    }
+
+    pub fn poll_nmi_interrupt(&mut self) -> bool {
+        self.ppu.poll_nmi_interrupt()
     }
 
     pub fn load_rom(&mut self, rom: Rom) {
@@ -77,6 +93,10 @@ impl Bus {
 
             }
         }
+    }
+
+    pub fn get_ppu_cycles(&self) -> usize {
+        self.ppu.cycles
     }
 }
 
