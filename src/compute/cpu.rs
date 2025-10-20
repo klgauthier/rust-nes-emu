@@ -1114,21 +1114,23 @@ impl CPU {
                 None => ()
             }
 
+            let mut delay = opcode.cycles;
+
             if starting_program_counter == self.program_counter {
                 if self.delay_branch_succeed {
-                    self.program_counter += 1;
+                    delay += 1;
                     self.delay_branch_succeed = false;
                 }
 
                 if self.delay_page_crossed {
-                    self.program_counter += 1;
+                    delay += 1;
                     self.delay_page_crossed = false;
                 }
 
-                self.program_counter += (opcode.len-1) as u16;
+                delay += opcode.len-1;
             }
 
-            self.bus.tick(opcode.cycles);
+            self.bus.tick(delay);
 
             callback(self);
         }
