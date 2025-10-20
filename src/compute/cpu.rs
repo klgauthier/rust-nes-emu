@@ -1093,7 +1093,7 @@ impl CPU {
                 },
                 _ => panic!("Unsupported length for opcode: {:X}", bytecode),
             };
-            
+
             //term_log.log_opcode_running(opcode_info, &args, self);
             file_log.log_opcode_running(opcode, &args, self);
 
@@ -1115,6 +1115,16 @@ impl CPU {
             }
 
             if starting_program_counter == self.program_counter {
+                if self.delay_branch_succeed {
+                    self.program_counter += 1;
+                    self.delay_branch_succeed = false;
+                }
+
+                if self.delay_page_crossed {
+                    self.program_counter += 1;
+                    self.delay_page_crossed = false;
+                }
+
                 self.program_counter += (opcode.len-1) as u16;
             }
 
@@ -1145,6 +1155,15 @@ impl CPU {
 
     fn branch_for_flag_value(&mut self, flag: CPUFlags, value: bool, offset: u8) {
         if self.get_flag(flag) == value {
+            self.delay_branch_succeed = true;
+
+            let prev_high_byte = (self.program_counter >> 8) as u8;
+            let next_high_byte = ((self.program_counter + offset as u16) >> 8) as u8;
+
+            if prev_high_byte != next_high_byte {
+                self.delay_page_crossed = true;
+            }
+
             self.offset_program_counter(offset);
         }
     }
@@ -1167,8 +1186,22 @@ impl CPU {
             (AddressingMode::ZeroPageX, Arguments::One(arg)) => self.mem_read_zero_page(arg, self.register_x),
             (AddressingMode::ZeroPageY, Arguments::One(arg)) => self.mem_read_zero_page(arg, self.register_y),
             (AddressingMode::Absolute, Arguments::Two(arg)) => self.mem_read(arg),
-            (AddressingMode::AbsoluteX, Arguments::Two(arg)) => self.mem_read_absolute(arg, self.register_x),
-            (AddressingMode::AbsoluteY, Arguments::Two(arg)) => self.mem_read_absolute(arg, self.register_y),
+            (AddressingMode::AbsoluteX, Arguments::Two(arg)) => {
+                let target_high_byte = arg.wrapping_add(self.register_x as u16);
+                if (arg >> 8) != (target_high_byte >> 8) {
+                    self.delay_page_crossed = true;
+                }
+
+                self.mem_read_absolute(arg, self.register_x)
+            }
+            (AddressingMode::AbsoluteY, Arguments::Two(arg)) => {
+                let target_high_byte = arg.wrapping_add(self.register_y as u16);
+                if (arg >> 8) != (target_high_byte >> 8) {
+                    self.delay_page_crossed = true;
+                }
+
+                self.mem_read_absolute(arg, self.register_y)
+            },
             (AddressingMode::IndirectX, Arguments::One(arg)) => {
                 let low = self.mem_read_zero_page(arg, self.register_x)?;
                 let high = self.mem_read_zero_page(arg, self.register_x+1)?;
@@ -1177,6 +1210,11 @@ impl CPU {
             },
             (AddressingMode::IndirectY, Arguments::One(arg)) => {
                 let base = self.mem_read_u16(arg as u16)?;
+                
+                let target_high_byte = base.wrapping_add(arg as u16);
+                if (base >> 8) != (target_high_byte >> 8) {
+                    self.delay_page_crossed = true;
+                }
 
                 self.mem_read_absolute(base, self.register_y)
             },
