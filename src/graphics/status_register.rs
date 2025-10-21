@@ -14,9 +14,9 @@ pub enum StatusFlags {
     AtVBlank,
 }
 
-impl Into<u8> for StatusFlags {
-    fn into(self) -> u8 {
-        self as u8
+impl From<StatusFlags> for u8 {
+    fn from(val: StatusFlags) -> u8 {
+        val as u8
     }
 }
 

@@ -14,9 +14,9 @@ pub enum MaskFlags {
     EmphasizeBlue,
 }
 
-impl Into<u8> for MaskFlags {
-    fn into(self) -> u8 {
-        self as u8
+impl From<MaskFlags> for u8 {
+    fn from(val: MaskFlags) -> u8 {
+        val as u8
     }
 }
 

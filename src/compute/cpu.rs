@@ -39,9 +39,9 @@ pub enum CPUFlags {
     Negative,
 }
 
-impl Into<u8> for CPUFlags {
-    fn into(self) -> u8 {
-        self as u8
+impl From<CPUFlags> for u8 {
+    fn from(val: CPUFlags) -> u8 {
+        val as u8
     }
 }
 
@@ -1129,7 +1129,7 @@ impl CPU {
 
     fn interrupt_nmi(&mut self) -> Option<MemReadError> {
         self.push_stack_u16(self.program_counter);
-        let mut flag = self.status.clone();
+        let mut flag = self.status;
         flag &= BitFlagU8::new(!(1 << CPUFlags::Break2 as u8 | 1 << CPUFlags::Break as u8));
         flag |= BitFlagU8::new(0b10 << CPUFlags::Break as u8);
 

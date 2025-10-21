@@ -14,9 +14,9 @@ pub enum ControlFlags {
     GenerateNMI,
 }
 
-impl Into<u8> for ControlFlags {
-    fn into(self) -> u8 {
-        self as u8
+impl From<ControlFlags> for u8 {
+    fn from(val: ControlFlags) -> u8 {
+        val as u8
     }
 }
 
