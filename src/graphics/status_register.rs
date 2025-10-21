@@ -1,6 +1,6 @@
 // Copyright 2025 Kevin Gauthier. All rights reserved.
 
-use crate::utils::bitflags::BitFlag;
+use crate::utils::bitflags::BitFlagU8;
 
 #[derive(Clone, Copy, Debug)]
 pub enum StatusFlags {
@@ -14,30 +14,29 @@ pub enum StatusFlags {
     AtVBlank,
 }
 
-pub struct StatusRegister {
-    flags: u8,
+impl Into<u8> for StatusFlags {
+    fn into(self) -> u8 {
+        self as u8
+    }
 }
 
-impl BitFlag<StatusFlags> for StatusRegister {
-    fn get_flag(&self, flag: StatusFlags) -> bool {
-        let bit = (self.flags >> flag as u8) & 1;
-        
-        bit != 0
-    }
-
-    fn set_flag(&mut self, flag: StatusFlags, value: bool) {
-        let result: u8 = (value as u8) << (flag as u8);
-
-        self.flags &= !(1 << (flag as u8));
-        self.flags |= result;
-    }
+pub struct StatusRegister {
+    flags: BitFlagU8,
 }
 
 impl StatusRegister {
     pub fn new() -> Self {
         StatusRegister { 
-            flags: 0 
+            flags: BitFlagU8::new(0x0) 
         }
+    }
+
+    pub fn get_flag(&self, flag: StatusFlags) -> bool {
+        self.flags.get_flag(flag)
+    }
+
+    pub fn set_flag(&mut self, flag: StatusFlags, value: bool) {
+        self.flags.set_flag(flag, value);
     }
 }
 

@@ -117,7 +117,7 @@ pub trait Logger {
             reg_a   = cpu.register_a,
             reg_x   = cpu.register_x,
             reg_y   = cpu.register_y,
-            status  = cpu.status,
+            status  = cpu.status.get(),
             stack   = cpu.stack_pointer,
             ppu1    = ppu1,
             ppu2    = ppu2,

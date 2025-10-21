@@ -6,7 +6,7 @@ use crate::compute::arguments::Arguments;
 use crate::compute::bus::{Bus, Memory};
 use crate::cartridge::Rom;
 use crate::logging::{ANSIColor, FileLog, LogWrite, Logger, TerminalLog};
-use crate::utils::bitflags::BitFlag;
+use crate::utils::bitflags::BitFlagU8;
 use crate::utils::errors::{CPUError, MemReadError};
 
 pub struct CPU
@@ -14,7 +14,7 @@ pub struct CPU
     pub register_a: u8,
     pub register_x: u8,
     pub register_y: u8,
-    pub status: u8,
+    pub status: BitFlagU8,
     pub program_counter: u16,
     pub stack_pointer: u8,
     pub bus: Bus,
@@ -37,6 +37,12 @@ pub enum CPUFlags {
     Break2,
     Overflow,
     Negative,
+}
+
+impl Into<u8> for CPUFlags {
+    fn into(self) -> u8 {
+        self as u8
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -155,8 +161,8 @@ impl Operations for CPU {
         let (result, carry, overflow) = CPU::accumulator_add(self.register_a, value);
 
         self.register_a = result;
-        self.set_flag(CPUFlags::Carry, carry);
-        self.set_flag(CPUFlags::Overflow, overflow);
+        self.status.set_flag(CPUFlags::Carry, carry);
+        self.status.set_flag(CPUFlags::Overflow, overflow);
 
         None
     }
@@ -172,7 +178,7 @@ impl Operations for CPU {
     fn asl(&mut self, operand: Operand) -> Option<CPUError> {
         match operand.args {
             Arguments::None => { // accumulator mode
-                self.set_flag(CPUFlags::Carry, self.register_a >= 0b1000_0000);
+                self.status.set_flag(CPUFlags::Carry, self.register_a >= 0b1000_0000);
 
                 self.register_a <<= 1;
                 self.update_zero_and_negative_flags(self.register_a);
@@ -184,7 +190,7 @@ impl Operations for CPU {
                 let addr = self.retreive_operand_address(operand).ok()?;
                 let value = self.mem_read(addr).ok()?;
 
-                self.set_flag(CPUFlags::Carry, value >= 0b1000_0000);
+                self.status.set_flag(CPUFlags::Carry, value >= 0b1000_0000);
                 let shifted_value = value << 1;
                 self.mem_write(addr, shifted_value);
                 self.update_zero_and_negative_flags(shifted_value);
@@ -215,9 +221,9 @@ impl Operations for CPU {
     fn bit(&mut self, operand: Operand) -> Option<CPUError> {
         let value = self.retreive_operand_value(operand).ok()?;
         
-        self.set_flag(CPUFlags::Overflow, (value & 0b0010_0000) != 0);
-        self.set_flag(CPUFlags::Negative, (value & 0b0100_0000) != 0);
-        self.set_flag(CPUFlags::Zero, value & self.register_a == 0);
+        self.status.set_flag(CPUFlags::Overflow, (value & 0b0010_0000) != 0);
+        self.status.set_flag(CPUFlags::Negative, (value & 0b0100_0000) != 0);
+        self.status.set_flag(CPUFlags::Zero, value & self.register_a == 0);
 
         None
     }
@@ -242,9 +248,9 @@ impl Operations for CPU {
 
     fn brk(&mut self, _operand: Operand) -> Option<CPUError> {
         self.push_stack_u16(self.program_counter);
-        self.push_stack(self.status);
+        self.push_stack(self.status.get());
         self.program_counter = self.mem_read_u16(0xFFFE).ok()?;
-        self.set_flag(CPUFlags::Break, true);
+        self.status.set_flag(CPUFlags::Break, true);
 
         Some(CPUError::BreakError)
     }
@@ -262,25 +268,25 @@ impl Operations for CPU {
     }
 
     fn clc(&mut self, _operand: Operand) -> Option<CPUError> {
-        self.set_flag(CPUFlags::Carry, false);
+        self.status.set_flag(CPUFlags::Carry, false);
 
         None
     }
 
     fn cld(&mut self, _operand: Operand) -> Option<CPUError> {
-        self.set_flag(CPUFlags::DecimalMode, false);
+        self.status.set_flag(CPUFlags::DecimalMode, false);
 
         None
     }
 
     fn cli(&mut self, _operand: Operand) -> Option<CPUError> {
-        self.set_flag(CPUFlags::InterruptDisable, false);
+        self.status.set_flag(CPUFlags::InterruptDisable, false);
 
         None
     }
 
     fn clv(&mut self, _operand: Operand) -> Option<CPUError> {
-        self.set_flag(CPUFlags::Overflow, false);
+        self.status.set_flag(CPUFlags::Overflow, false);
 
         None
     }
@@ -433,7 +439,7 @@ impl Operations for CPU {
     fn lsr(&mut self, operand: Operand) -> Option<CPUError> {
         match operand.args {
             Arguments::None => { // accumulator mode
-                self.set_flag(CPUFlags::Carry, (self.register_a & 0b0000_0001) != 0);
+                self.status.set_flag(CPUFlags::Carry, (self.register_a & 0b0000_0001) != 0);
                 self.register_a >>= 1;
                 self.update_zero_and_negative_flags(self.register_a);
             }
@@ -444,7 +450,7 @@ impl Operations for CPU {
                 let addr = self.retreive_operand_address(operand).ok()?;
                 let value = self.mem_read(addr).ok()?;
 
-                self.set_flag(CPUFlags::Carry, (value & 0b0000_0001) != 0);
+                self.status.set_flag(CPUFlags::Carry, (value & 0b0000_0001) != 0);
                 let shifted_value = value >> 1;
                 self.mem_write(addr, shifted_value);
                 self.update_zero_and_negative_flags(shifted_value);
@@ -474,7 +480,7 @@ impl Operations for CPU {
     }
 
     fn php(&mut self, _operand: Operand) -> Option<CPUError> {
-        let status_state = self.status | (1 << CPUFlags::Break as u8) | (1 << CPUFlags::Break2 as u8); 
+        let status_state = self.status.get() | (1 << CPUFlags::Break as u8) | (1 << CPUFlags::Break2 as u8); 
         self.push_stack(status_state);
 
         None
@@ -488,8 +494,9 @@ impl Operations for CPU {
     }
 
     fn plp(&mut self, _operand: Operand) -> Option<CPUError> {
-        self.status &= (1 << CPUFlags::Break as u8) & (1 << CPUFlags::Break2 as u8);
-        self.status |= self.pop_stack().ok()? & !(1 << CPUFlags::Break as u8) & !(1 << CPUFlags::Break2 as u8);
+        self.status &= BitFlagU8::new((1 << CPUFlags::Break as u8) & (1 << CPUFlags::Break2 as u8));
+        let stack_value = self.pop_stack().ok()?;
+        self.status |= BitFlagU8::new(stack_value & !(1 << CPUFlags::Break as u8) & !(1 << CPUFlags::Break2 as u8));
 
         None
     }
@@ -497,8 +504,8 @@ impl Operations for CPU {
     fn rol(&mut self, operand: Operand) -> Option<CPUError> {
         match operand.args {
             Arguments::None => { // accumulator mode
-                let old_carry = self.get_flag(CPUFlags::Carry) as u8;
-                self.set_flag(CPUFlags::Carry, (self.register_a & 0b1000_0000) != 0);
+                let old_carry = self.status.get_flag(CPUFlags::Carry) as u8;
+                self.status.set_flag(CPUFlags::Carry, (self.register_a & 0b1000_0000) != 0);
                 self.register_a = (self.register_a << 1) | old_carry;
                 self.update_zero_and_negative_flags(self.register_a);
             }
@@ -509,12 +516,12 @@ impl Operations for CPU {
                 let addr = self.retreive_operand_address(operand).ok()?;
                 let value = self.mem_read(addr).ok()?;
 
-                let old_carry = self.get_flag(CPUFlags::Carry) as u8;
-                self.set_flag(CPUFlags::Carry, (value & 0b1000_0000) != 0);
+                let old_carry = self.status.get_flag(CPUFlags::Carry) as u8;
+                self.status.set_flag(CPUFlags::Carry, (value & 0b1000_0000) != 0);
                 let result= (value << 1) | old_carry;
                 self.mem_write(addr, result);
-                self.set_flag(CPUFlags::Zero, self.register_a == 0);
-                self.set_flag(CPUFlags::Negative, (result & 0b1000_0000) != 0);
+                self.status.set_flag(CPUFlags::Zero, self.register_a == 0);
+                self.status.set_flag(CPUFlags::Negative, (result & 0b1000_0000) != 0);
             }
         }
 
@@ -524,8 +531,8 @@ impl Operations for CPU {
     fn ror(&mut self, operand: Operand) -> Option<CPUError> {
         match operand.args {
             Arguments::None => { // accumulator mode
-                let old_carry = self.get_flag(CPUFlags::Carry) as u8;
-                self.set_flag(CPUFlags::Carry, (self.register_a & 0b0000_0001) != 0);
+                let old_carry = self.status.get_flag(CPUFlags::Carry) as u8;
+                self.status.set_flag(CPUFlags::Carry, (self.register_a & 0b0000_0001) != 0);
                 self.register_a = (self.register_a >> 1) | (old_carry << 7);
                 self.update_zero_and_negative_flags(self.register_a);
             }
@@ -533,15 +540,15 @@ impl Operations for CPU {
             Arguments::One(_) => (),
 
             Arguments::Two(_) => { // memory mode
-                let old_carry = self.get_flag(CPUFlags::Carry) as u8;
+                let old_carry = self.status.get_flag(CPUFlags::Carry) as u8;
                 let addr = self.retreive_operand_address(operand).ok()?;
                 let value = self.mem_read(addr).ok()?;
 
-                self.set_flag(CPUFlags::Carry, (value & 0b0000_0001) != 0);
+                self.status.set_flag(CPUFlags::Carry, (value & 0b0000_0001) != 0);
                 let result= (value >> 1) | (old_carry << 7);
                 self.mem_write(addr, result);
-                self.set_flag(CPUFlags::Zero, self.register_a == 0);
-                self.set_flag(CPUFlags::Negative, (result & 0b1000_0000) != 0);
+                self.status.set_flag(CPUFlags::Zero, self.register_a == 0);
+                self.status.set_flag(CPUFlags::Negative, (result & 0b1000_0000) != 0);
             }
         }
 
@@ -549,7 +556,7 @@ impl Operations for CPU {
     }
 
     fn rti(&mut self, _operand: Operand) -> Option<CPUError> {
-        self.status = self.pop_stack().ok()?;
+        self.status = BitFlagU8::new(self.pop_stack().ok()?);
         self.program_counter = self.pop_stack_u16().ok()?;
 
         None
@@ -570,26 +577,26 @@ impl Operations for CPU {
         let (result, carry, overflow) = CPU::accumulator_add(self.register_a, value_2c);
 
         self.register_a = result;
-        self.set_flag(CPUFlags::Carry, carry);
-        self.set_flag(CPUFlags::Overflow, overflow);
+        self.status.set_flag(CPUFlags::Carry, carry);
+        self.status.set_flag(CPUFlags::Overflow, overflow);
 
         None
     }
 
     fn sec(&mut self, _operand: Operand) -> Option<CPUError> {
-        self.set_flag(CPUFlags::Carry, true);
+        self.status.set_flag(CPUFlags::Carry, true);
 
         None
     }
 
     fn sed(&mut self, _operand: Operand) -> Option<CPUError> {
-        self.set_flag(CPUFlags::DecimalMode, true);
+        self.status.set_flag(CPUFlags::DecimalMode, true);
 
         None
     }
 
     fn sei(&mut self, _operand: Operand) -> Option<CPUError> {
-        self.set_flag(CPUFlags::InterruptDisable, true);
+        self.status.set_flag(CPUFlags::InterruptDisable, true);
 
         None
     }
@@ -685,7 +692,7 @@ impl IllegalOperations for CPU {
         let value = self.retreive_operand_value(operand).ok()?;
         self.register_a &= value;
         self.update_zero_and_negative_flags(self.register_a);
-        self.set_flag(CPUFlags::Carry, self.get_flag(CPUFlags::Negative));
+        self.status.set_flag(CPUFlags::Carry, self.status.get_flag(CPUFlags::Negative));
 
         None
     }
@@ -708,20 +715,20 @@ impl IllegalOperations for CPU {
         let bit6: bool = ((self.register_a >> 6) & 1) != 0;
         match (bit5, bit6) {
             (true, true) => {
-                self.set_flag(CPUFlags::Carry,      true);
-                self.set_flag(CPUFlags::Overflow,   false);
+                self.status.set_flag(CPUFlags::Carry,      true);
+                self.status.set_flag(CPUFlags::Overflow,   false);
             },
             (true, false) => {
-                self.set_flag(CPUFlags::Carry,      false);
-                self.set_flag(CPUFlags::Overflow,   true);
+                self.status.set_flag(CPUFlags::Carry,      false);
+                self.status.set_flag(CPUFlags::Overflow,   true);
             },
             (false, true) => {
-                self.set_flag(CPUFlags::Carry,      true);
-                self.set_flag(CPUFlags::Overflow,   true);
+                self.status.set_flag(CPUFlags::Carry,      true);
+                self.status.set_flag(CPUFlags::Overflow,   true);
             },
             (false, false) => {
-                self.set_flag(CPUFlags::Carry,      false);
-                self.set_flag(CPUFlags::Overflow,   false);
+                self.status.set_flag(CPUFlags::Carry,      false);
+                self.status.set_flag(CPUFlags::Overflow,   false);
             },
         }
 
@@ -761,7 +768,7 @@ impl IllegalOperations for CPU {
         let (result, carry, _overflow) = CPU::accumulator_add(self.register_a, value_2c);
 
         self.register_x = result;
-        self.set_flag(CPUFlags::Carry, carry);
+        self.status.set_flag(CPUFlags::Carry, carry);
         self.update_zero_and_negative_flags(self.register_x);
 
         None
@@ -774,7 +781,7 @@ impl IllegalOperations for CPU {
 
         let (result, carry, _overflow) = CPU::accumulator_add(value, dec1);
         self.mem_write(addr, result);
-        self.set_flag(CPUFlags::Carry, carry);
+        self.status.set_flag(CPUFlags::Carry, carry);
 
         None
     }
@@ -788,8 +795,8 @@ impl IllegalOperations for CPU {
 
         let (result, carry, overflow) = CPU::accumulator_add(self.register_a, value2c);
         self.register_a = result;
-        self.set_flag(CPUFlags::Carry, carry);
-        self.set_flag(CPUFlags::Overflow, overflow);
+        self.status.set_flag(CPUFlags::Carry, carry);
+        self.status.set_flag(CPUFlags::Overflow, overflow);
         self.update_zero_and_negative_flags(self.register_a);
 
         None
@@ -889,29 +896,13 @@ impl Default for CPU {
     }
 }
 
-impl BitFlag<CPUFlags> for CPU {
-
-    fn get_flag(&self, flag: CPUFlags) -> bool {
-        let bit = (self.status >> flag as u8) & 1;
-        
-        bit != 0
-    }
-
-    fn set_flag(&mut self, flag: CPUFlags, value: bool) {
-        let result: u8 = (value as u8) << (flag as u8);
-
-        self.status &= !(1 << (flag as u8));
-        self.status |= result;
-    }
-}
-
 impl CPU {
     pub fn new() -> Self {
         CPU {
             register_a: 0,
             register_x: 0,
             register_y: 0,
-            status: (1 << CPUFlags::InterruptDisable as u8),
+            status: BitFlagU8::new((1 << CPUFlags::InterruptDisable as u8) as u8),
             program_counter: bus::ROM,
             stack_pointer: (ADDR_STACK_TOP - ADDR_STACK_BOTTOM) as u8,
             bus: Bus::new(),
@@ -1139,11 +1130,11 @@ impl CPU {
     fn interrupt_nmi(&mut self) -> Option<MemReadError> {
         self.push_stack_u16(self.program_counter);
         let mut flag = self.status.clone();
-        flag &= !(1 << CPUFlags::Break2 as u8 | 1 << CPUFlags::Break as u8);
-        flag |= 0b10 << CPUFlags::Break as u8;
+        flag &= BitFlagU8::new(!(1 << CPUFlags::Break2 as u8 | 1 << CPUFlags::Break as u8));
+        flag |= BitFlagU8::new(0b10 << CPUFlags::Break as u8);
 
-        self.push_stack(flag);
-        self.set_flag(CPUFlags::InterruptDisable, true);
+        self.push_stack(flag.get());
+        self.status.set_flag(CPUFlags::InterruptDisable, true);
 
         self.bus.tick(2);
         self.program_counter = self.mem_read_u16(0xFFFA).ok()?;
@@ -1156,7 +1147,7 @@ impl CPU {
     // ================
 
     fn branch_for_flag_value(&mut self, flag: CPUFlags, value: bool, offset: u8) {
-        if self.get_flag(flag) == value {
+        if self.status.get_flag(flag) == value {
             self.delay_branch_succeed = true;
 
             let prev_high_byte = (self.program_counter >> 8) as u8;
@@ -1171,14 +1162,14 @@ impl CPU {
     }
 
     fn compare(&mut self, register_value: u8, memory_value: u8) {
-        self.set_flag(CPUFlags::Carry, register_value >= memory_value);
+        self.status.set_flag(CPUFlags::Carry, register_value >= memory_value);
         self.update_zero_and_negative_flags(register_value.wrapping_sub(memory_value));
 
     }
 
     fn update_zero_and_negative_flags(&mut self, value: u8) {
-        self.set_flag(CPUFlags::Zero, value == 0);
-        self.set_flag(CPUFlags::Negative, (value & 0b1000_0000) != 0);
+        self.status.set_flag(CPUFlags::Zero, value == 0);
+        self.status.set_flag(CPUFlags::Negative, (value & 0b1000_0000) != 0);
     }
 
     fn retreive_operand_value(&mut self, operand: Operand) -> Result<u8, MemReadError> {
@@ -1319,8 +1310,8 @@ mod test {
     #[test]
     fn test_adc_immediate_flags_overflow_carry() {
         let cpu = test_run(vec![0xa9, 0x80, 0x69, 0x80, 0x00]);
-        assert!(cpu.get_flag(CPUFlags::Overflow));
-        assert!(cpu.get_flag(CPUFlags::Carry));
+        assert!(cpu.status.get_flag(CPUFlags::Overflow));
+        assert!(cpu.status.get_flag(CPUFlags::Carry));
     }
 
     #[test]
@@ -1338,7 +1329,7 @@ mod test {
     #[test]
     fn test_bcc_pass() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Carry, false);
+        cpu.status.set_flag(CPUFlags::Carry, false);
         cpu.build_rom_load_and_run(vec![0x90, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0x01);
     }
@@ -1346,7 +1337,7 @@ mod test {
     #[test]
     fn test_bcc_fail() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Carry, true);
+        cpu.status.set_flag(CPUFlags::Carry, true);
         cpu.build_rom_load_and_run(vec![0x90, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0xFF);
     }
@@ -1354,7 +1345,7 @@ mod test {
     #[test]
     fn test_bcs_pass() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Carry, true);
+        cpu.status.set_flag(CPUFlags::Carry, true);
         cpu.build_rom_load_and_run(vec![0xB0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0x01);
     }
@@ -1362,7 +1353,7 @@ mod test {
     #[test]
     fn test_bcs_fail() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Carry, false);
+        cpu.status.set_flag(CPUFlags::Carry, false);
         cpu.build_rom_load_and_run(vec![0xB0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0xFF);
     }
@@ -1370,7 +1361,7 @@ mod test {
     #[test]
     fn test_beq_pass() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Zero, true);
+        cpu.status.set_flag(CPUFlags::Zero, true);
         cpu.build_rom_load_and_run(vec![0xF0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0x01);
     }
@@ -1378,7 +1369,7 @@ mod test {
     #[test]
     fn test_beq_fail() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Zero, false);
+        cpu.status.set_flag(CPUFlags::Zero, false);
         cpu.build_rom_load_and_run(vec![0xF0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0xFF);
     }
@@ -1386,7 +1377,7 @@ mod test {
     #[test]
     fn test_bne_pass() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Zero, false);
+        cpu.status.set_flag(CPUFlags::Zero, false);
         cpu.build_rom_load_and_run(vec![0xD0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0x01);
     }
@@ -1394,7 +1385,7 @@ mod test {
     #[test]
     fn test_bne_fail() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Zero, true);
+        cpu.status.set_flag(CPUFlags::Zero, true);
         cpu.build_rom_load_and_run(vec![0xD0, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0xFF);
     }
@@ -1404,7 +1395,7 @@ mod test {
         let mut cpu = CPU::new();
         cpu.mem_write(0x0000, 0x00);
         cpu.build_rom_load_and_run(vec![0xA9, 0x04, 0x24, 0x00, 0x00], None);
-        assert!(cpu.get_flag(CPUFlags::Zero));
+        assert!(cpu.status.get_flag(CPUFlags::Zero));
     }
 
     #[test]
@@ -1412,8 +1403,8 @@ mod test {
         let mut cpu = CPU::new();
         cpu.mem_write(0x0000, 0xFF);
         cpu.build_rom_load_and_run(vec![0xA9, 0x00, 0x24, 0x00, 0x00], None);
-        assert!(cpu.get_flag(CPUFlags::Overflow));
-        assert!(cpu.get_flag(CPUFlags::Negative));
+        assert!(cpu.status.get_flag(CPUFlags::Overflow));
+        assert!(cpu.status.get_flag(CPUFlags::Negative));
     }
 
     #[test]
@@ -1421,14 +1412,14 @@ mod test {
         let mut cpu = CPU::new();
         cpu.mem_write(0x0000, 0x00);
         cpu.build_rom_load_and_run(vec![0xA9, 0x00, 0x24, 0x00, 0x00], None);
-        assert!(!cpu.get_flag(CPUFlags::Overflow));
-        assert!(!cpu.get_flag(CPUFlags::Negative));
+        assert!(!cpu.status.get_flag(CPUFlags::Overflow));
+        assert!(!cpu.status.get_flag(CPUFlags::Negative));
     }
 
     #[test]
     fn test_bmi_pass() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Negative, true);
+        cpu.status.set_flag(CPUFlags::Negative, true);
         cpu.build_rom_load_and_run(vec![0x30, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0x01);
     }
@@ -1436,7 +1427,7 @@ mod test {
     #[test]
     fn test_bmi_fail() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Negative, false);
+        cpu.status.set_flag(CPUFlags::Negative, false);
         cpu.build_rom_load_and_run(vec![0x30, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0xFF);
     }
@@ -1444,7 +1435,7 @@ mod test {
     #[test]
     fn test_bpl_pass() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Negative, false);
+        cpu.status.set_flag(CPUFlags::Negative, false);
         cpu.build_rom_load_and_run(vec![0x10, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0x01);
     }
@@ -1452,7 +1443,7 @@ mod test {
     #[test]
     fn test_bpl_fail() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Negative, true);
+        cpu.status.set_flag(CPUFlags::Negative, true);
         cpu.build_rom_load_and_run(vec![0x10, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0xFF);
     }
@@ -1460,7 +1451,7 @@ mod test {
     #[test]
     fn test_bvc_pass() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Overflow, false);
+        cpu.status.set_flag(CPUFlags::Overflow, false);
         cpu.build_rom_load_and_run(vec![0x50, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0x01);
     }
@@ -1468,7 +1459,7 @@ mod test {
     #[test]
     fn test_bvc_fail() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Overflow, true);
+        cpu.status.set_flag(CPUFlags::Overflow, true);
         cpu.build_rom_load_and_run(vec![0x50, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0xFF);
     }
@@ -1476,7 +1467,7 @@ mod test {
     #[test]
     fn test_bvs_pass() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Overflow, true);
+        cpu.status.set_flag(CPUFlags::Overflow, true);
         cpu.build_rom_load_and_run(vec![0x70, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0x01);
     }
@@ -1484,7 +1475,7 @@ mod test {
     #[test]
     fn test_bvs_fail() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Overflow, false);
+        cpu.status.set_flag(CPUFlags::Overflow, false);
         cpu.build_rom_load_and_run(vec![0x70, 0x03, 0xA9, 0xFF, 0x00, 0xA9, 0x01, 0x00], None);
         assert!(cpu.register_a == 0xFF);
     }
@@ -1492,138 +1483,138 @@ mod test {
     #[test]
     fn test_clc() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Carry, true);
+        cpu.status.set_flag(CPUFlags::Carry, true);
         cpu.build_rom_load_and_run(vec![0x18, 0x00], None);
-        assert!(!cpu.get_flag(CPUFlags::Carry));
+        assert!(!cpu.status.get_flag(CPUFlags::Carry));
     }
 
     #[test]
     fn test_sec() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Carry, false);
+        cpu.status.set_flag(CPUFlags::Carry, false);
         cpu.build_rom_load_and_run(vec![0x38, 0x00], None);
-        assert!(cpu.get_flag(CPUFlags::Carry));
+        assert!(cpu.status.get_flag(CPUFlags::Carry));
     }
 
     #[test]
     fn test_cld() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::DecimalMode, true);
+        cpu.status.set_flag(CPUFlags::DecimalMode, true);
         cpu.build_rom_load_and_run(vec![0xD8, 0x00], None);
-        assert!(!cpu.get_flag(CPUFlags::DecimalMode));
+        assert!(!cpu.status.get_flag(CPUFlags::DecimalMode));
     }
 
     #[test]
     fn test_sed() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::DecimalMode, false);
+        cpu.status.set_flag(CPUFlags::DecimalMode, false);
         cpu.build_rom_load_and_run(vec![0xF8, 0x00], None);
-        assert!(cpu.get_flag(CPUFlags::DecimalMode));
+        assert!(cpu.status.get_flag(CPUFlags::DecimalMode));
     }
 
     #[test]
     fn test_cli() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::InterruptDisable, true);
+        cpu.status.set_flag(CPUFlags::InterruptDisable, true);
         cpu.build_rom_load_and_run(vec![0x58, 0x00], None);
-        assert!(!cpu.get_flag(CPUFlags::InterruptDisable));
+        assert!(!cpu.status.get_flag(CPUFlags::InterruptDisable));
     }
 
     #[test]
     fn test_sei() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::InterruptDisable, false);
+        cpu.status.set_flag(CPUFlags::InterruptDisable, false);
         cpu.build_rom_load_and_run(vec![0x78, 0x00], None);
-        assert!(cpu.get_flag(CPUFlags::InterruptDisable));
+        assert!(cpu.status.get_flag(CPUFlags::InterruptDisable));
     }
 
     #[test]
     fn test_clv() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Overflow, true);
+        cpu.status.set_flag(CPUFlags::Overflow, true);
         cpu.build_rom_load_and_run(vec![0xB8, 0x00], None);
-        assert!(!cpu.get_flag(CPUFlags::Overflow));
+        assert!(!cpu.status.get_flag(CPUFlags::Overflow));
     }
 
     #[test]
     fn test_cmp_equal() {
         let cpu = test_run(vec![0xa9, 0x02, 0xC9, 0x02, 0x00]);
-        assert!(cpu.get_flag(CPUFlags::Carry));
-        assert!(cpu.get_flag(CPUFlags::Zero));
+        assert!(cpu.status.get_flag(CPUFlags::Carry));
+        assert!(cpu.status.get_flag(CPUFlags::Zero));
     }
 
     #[test]
     fn test_cmp_greater() {
         let cpu = test_run(vec![0xa9, 0x02, 0xC9, 0x01, 0x00]);
-        assert!(cpu.get_flag(CPUFlags::Carry));
-        assert!(!cpu.get_flag(CPUFlags::Zero));
+        assert!(cpu.status.get_flag(CPUFlags::Carry));
+        assert!(!cpu.status.get_flag(CPUFlags::Zero));
     }
 
     #[test]
     fn test_cmp_lesser() {
         let cpu = test_run(vec![0xa9, 0x01, 0xC9, 0x02, 0x00]);
-        assert!(!cpu.get_flag(CPUFlags::Carry));
-        assert!(!cpu.get_flag(CPUFlags::Zero));
+        assert!(!cpu.status.get_flag(CPUFlags::Carry));
+        assert!(!cpu.status.get_flag(CPUFlags::Zero));
     }
 
     #[test]
     fn test_cmp_negative_carry() {
         let cpu = test_run(vec![0xa9, 0xFF, 0xC9, 0x01, 0x00]);
-        assert!(cpu.get_flag(CPUFlags::Negative));
+        assert!(cpu.status.get_flag(CPUFlags::Negative));
     }
 
     #[test]
     fn test_cpx_equal() {
         let cpu = test_run(vec![0xA2, 0x02, 0xE0, 0x02, 0x00]);
-        assert!(cpu.get_flag(CPUFlags::Carry));
-        assert!(cpu.get_flag(CPUFlags::Zero));
+        assert!(cpu.status.get_flag(CPUFlags::Carry));
+        assert!(cpu.status.get_flag(CPUFlags::Zero));
     }
 
     #[test]
     fn test_cpx_greater() {
         let cpu = test_run(vec![0xA2, 0x02, 0xE0, 0x01, 0x00]);
-        assert!(cpu.get_flag(CPUFlags::Carry));
-        assert!(!cpu.get_flag(CPUFlags::Zero));
+        assert!(cpu.status.get_flag(CPUFlags::Carry));
+        assert!(!cpu.status.get_flag(CPUFlags::Zero));
     }
 
     #[test]
     fn test_cpx_lesser() {
         let cpu = test_run(vec![0xA2, 0x01, 0xE0, 0x02, 0x00]);
-        assert!(!cpu.get_flag(CPUFlags::Carry));
-        assert!(!cpu.get_flag(CPUFlags::Zero));
+        assert!(!cpu.status.get_flag(CPUFlags::Carry));
+        assert!(!cpu.status.get_flag(CPUFlags::Zero));
     }
 
     #[test]
     fn test_cpx_negative_carry() {
         let cpu = test_run(vec![0xA2, 0xFF, 0xE0, 0x01, 0x00]);
-        assert!(cpu.get_flag(CPUFlags::Negative));
+        assert!(cpu.status.get_flag(CPUFlags::Negative));
     }
 
     #[test]
     fn test_cpy_equal() {
         let cpu = test_run(vec![0xA0, 0x02, 0xC0, 0x02, 0x00]);
-        assert!(cpu.get_flag(CPUFlags::Carry));
-        assert!(cpu.get_flag(CPUFlags::Zero));
+        assert!(cpu.status.get_flag(CPUFlags::Carry));
+        assert!(cpu.status.get_flag(CPUFlags::Zero));
     }
 
     #[test]
     fn test_cpy_greater() {
         let cpu = test_run(vec![0xA0, 0x02, 0xC0, 0x01, 0x00]);
-        assert!(cpu.get_flag(CPUFlags::Carry));
-        assert!(!cpu.get_flag(CPUFlags::Zero));
+        assert!(cpu.status.get_flag(CPUFlags::Carry));
+        assert!(!cpu.status.get_flag(CPUFlags::Zero));
     }
 
     #[test]
     fn test_cpy_lesser() {
         let cpu = test_run(vec![0xA0, 0x01, 0xC0, 0x02, 0x00]);
-        assert!(!cpu.get_flag(CPUFlags::Carry));
-        assert!(!cpu.get_flag(CPUFlags::Zero));
+        assert!(!cpu.status.get_flag(CPUFlags::Carry));
+        assert!(!cpu.status.get_flag(CPUFlags::Zero));
     }
 
     #[test]
     fn test_cpy_negative_carry() {
         let cpu = test_run(vec![0xA0, 0xFF, 0xC0, 0x01, 0x00]);
-        assert!(cpu.get_flag(CPUFlags::Negative));
+        assert!(cpu.status.get_flag(CPUFlags::Negative));
     }
 
     #[test]
@@ -1758,7 +1749,7 @@ mod test {
     #[test]
     fn test_pha_0x02() {
         let mut cpu = CPU::new();
-        cpu.status = 0x0;
+        cpu.status = BitFlagU8::new(0x0);
         cpu.build_rom_load_and_run(vec![0xA9, 0x02, 0x48, 0x00], None);
         let value = cpu.pop_stack().unwrap();
         assert!(value == 0x02);
@@ -1767,8 +1758,8 @@ mod test {
     #[test]
     fn test_php_0x02() {
         let mut cpu = CPU::new();
-        cpu.status = 0x0;
-        cpu.set_flag(CPUFlags::Zero, true);
+        cpu.status = BitFlagU8::new(0x0);
+        cpu.status.set_flag(CPUFlags::Zero, true);
         cpu.build_rom_load_and_run(vec![0x08, 0x00], None);
         let stack_value = cpu.pop_stack().unwrap();
         assert!(stack_value == (0x02 | (1 << CPUFlags::Break as u8) | (1 << CPUFlags::Break2 as u8)));
@@ -1777,7 +1768,7 @@ mod test {
     #[test]
     fn test_pla_0x01() {
         let mut cpu = CPU::new();
-        cpu.status = 0x0;
+        cpu.status = BitFlagU8::new(0x0);
         cpu.push_stack(0x01);
         cpu.build_rom_load_and_run(vec![0x68, 0x00], None);
         assert!(cpu.register_a == 0x01);
@@ -1788,34 +1779,34 @@ mod test {
         let mut cpu = CPU::new();
         cpu.push_stack(0x01);
         cpu.build_rom_load_and_run(vec![0x28, 0x00], None);
-        assert!(cpu.status == 0x01);
+        assert!(cpu.status.get() == 0x01);
     }
 
     #[test]
     fn test_rol_0x80_with_carry_to_0x01() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Carry, true);
+        cpu.status.set_flag(CPUFlags::Carry, true);
         cpu.build_rom_load_and_run(vec![0xA9, 0x80, 0x2A, 0x00], None);
         assert!(cpu.register_a == 0x01);
-        assert!(cpu.get_flag(CPUFlags::Carry));
+        assert!(cpu.status.get_flag(CPUFlags::Carry));
     }
 
     #[test]
     fn test_rol_0x80_no_carry_to_0x00() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Carry, false);
+        cpu.status.set_flag(CPUFlags::Carry, false);
         cpu.build_rom_load_and_run(vec![0xA9, 0x80, 0x2A, 0x00], None);
         assert!(cpu.register_a == 0x00);
-        assert!(cpu.get_flag(CPUFlags::Carry));
+        assert!(cpu.status.get_flag(CPUFlags::Carry));
     }
 
     #[test]
     fn test_ror_0x00_with_carry_to_0x80() {
         let mut cpu = CPU::new();
-        cpu.set_flag(CPUFlags::Carry, true);
+        cpu.status.set_flag(CPUFlags::Carry, true);
         cpu.build_rom_load_and_run(vec![0xA9, 0x00, 0x6A, 0x00], None);
         assert!(cpu.register_a == 0x80);
-        assert!(!cpu.get_flag(CPUFlags::Carry));
+        assert!(!cpu.status.get_flag(CPUFlags::Carry));
     }
 
     #[test]
@@ -1825,7 +1816,7 @@ mod test {
         cpu.push_stack(0x01);
         let start_counter = cpu.program_counter;
         cpu.build_rom_load_and_run(vec![0x40, 0x00, 0xEA, 0x00], None);
-        assert!(cpu.status == 0x01);
+        assert!(cpu.status.get() == 0x01);
         assert!(cpu.program_counter == start_counter+4);
     }
 
@@ -1912,8 +1903,8 @@ mod test {
     fn test_aac_0x83_and_0x82() {
         let cpu = test_run(vec![0xA9, 0x83, 0x0B, 0x82, 0x00]);
         assert!(cpu.register_a == 0x82);
-        assert!(cpu.get_flag(CPUFlags::Negative));
-        assert!(cpu.get_flag(CPUFlags::Carry));
+        assert!(cpu.status.get_flag(CPUFlags::Negative));
+        assert!(cpu.status.get_flag(CPUFlags::Carry));
     }
 
     #[test]
@@ -1923,7 +1914,7 @@ mod test {
         cpu.register_a = 0x82;
         cpu.build_rom_load_and_run(vec![0x8F, 0x00, 0x00, 0x00], None);
         assert!(cpu.mem_read(0x0000).unwrap() == (0x83 & 0x82));
-        assert!(cpu.get_flag(CPUFlags::Negative));
+        assert!(cpu.status.get_flag(CPUFlags::Negative));
     }
 
     #[test]
@@ -1932,7 +1923,7 @@ mod test {
         cpu.register_a = 0x83;
         cpu.build_rom_load_and_run(vec![0x6B, 0x82, 0x00], None);
         assert!(cpu.register_a == 0x41);
-        assert!(cpu.get_flag(CPUFlags::Overflow));
+        assert!(cpu.status.get_flag(CPUFlags::Overflow));
     }
 
     #[test]

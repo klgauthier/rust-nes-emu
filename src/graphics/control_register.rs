@@ -1,6 +1,6 @@
 // Copyright 2025 Kevin Gauthier. All rights reserved.
 
-use crate::utils::bitflags::BitFlag;
+use crate::utils::bitflags::BitFlagU8;
 
 #[derive(Clone, Copy, Debug)]
 pub enum ControlFlags {
@@ -14,23 +14,14 @@ pub enum ControlFlags {
     GenerateNMI,
 }
 
-pub struct ControlRegister {
-    flags: u8,
+impl Into<u8> for ControlFlags {
+    fn into(self) -> u8 {
+        self as u8
+    }
 }
 
-impl BitFlag<ControlFlags> for ControlRegister {
-    fn get_flag(&self, flag: ControlFlags) -> bool {
-        let bit = (self.flags >> flag as u8) & 1;
-        
-        bit != 0
-    }
-
-    fn set_flag(&mut self, flag: ControlFlags, value: bool) {
-        let result: u8 = (value as u8) << (flag as u8);
-
-        self.flags &= !(1 << (flag as u8));
-        self.flags |= result;
-    }
+pub struct ControlRegister {
+    flags: BitFlagU8,
 }
 
 impl Default for ControlRegister {
@@ -42,18 +33,26 @@ impl Default for ControlRegister {
 impl ControlRegister {
     pub fn new() -> Self {
         ControlRegister { 
-            flags: 0 
+            flags: BitFlagU8::new(0x0) 
         }
     }
 
     pub fn get_vram_addr_increment(&self) -> u8 {
-        match self.get_flag(ControlFlags::VRamAddIncrement) {
+        match self.flags.get_flag(ControlFlags::VRamAddIncrement) {
             true => 32,
             false => 1,
         }
     }
 
     pub fn update(&mut self, data: u8) {
-        self.flags = data;
+        self.flags = BitFlagU8::new(data);
+    }
+
+    pub fn get_flag(&self, flag: ControlFlags) -> bool {
+        self.flags.get_flag(flag)
+    }
+
+    pub fn set_flag(&mut self, flag: ControlFlags, value: bool) {
+        self.flags.set_flag(flag, value);
     }
 }

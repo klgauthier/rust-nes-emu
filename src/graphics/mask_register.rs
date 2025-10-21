@@ -1,6 +1,6 @@
 // Copyright 2025 Kevin Gauthier. All rights reserved.
 
-use crate::utils::bitflags::BitFlag;
+use crate::utils::bitflags::BitFlagU8;
 
 #[derive(Clone, Copy, Debug)]
 pub enum MaskFlags {
@@ -14,30 +14,29 @@ pub enum MaskFlags {
     EmphasizeBlue,
 }
 
-pub struct MaskRegister {
-    flags: u8,
+impl Into<u8> for MaskFlags {
+    fn into(self) -> u8 {
+        self as u8
+    }
 }
 
-impl BitFlag<MaskFlags> for MaskRegister {
-    fn get_flag(&self, flag: MaskFlags) -> bool {
-        let bit = (self.flags >> flag as u8) & 1;
-        
-        bit != 0
-    }
-
-    fn set_flag(&mut self, flag: MaskFlags, value: bool) {
-        let result: u8 = (value as u8) << (flag as u8);
-
-        self.flags &= !(1 << (flag as u8));
-        self.flags |= result;
-    }
+pub struct MaskRegister {
+    flags: BitFlagU8,
 }
 
 impl MaskRegister {
     pub fn new() -> Self {
         MaskRegister { 
-            flags: 0 
+            flags: BitFlagU8::new(0x0) 
         }
+    }
+
+    pub fn get_flag(&self, flag: MaskFlags) -> bool {
+        self.flags.get_flag(flag)
+    }
+    
+    pub fn set_flag(&mut self, flag: MaskFlags, value: bool) {
+        self.flags.set_flag(flag, value);
     }
 }
 

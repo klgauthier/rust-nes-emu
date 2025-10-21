@@ -5,7 +5,7 @@ use crate::graphics::control_register::ControlFlags;
 use crate::graphics::mask_register::MaskRegister;
 use crate::graphics::status_register::{StatusFlags, StatusRegister};
 use crate::graphics::{addr_register::AddrRegister, control_register::ControlRegister};
-use crate::utils::bitflags::BitFlag;
+use crate::utils::bitflags::BitFlagU8;
 use crate::utils::errors::MemReadError;
 
 const HBLANK_CYCLE: u16 = 341;
