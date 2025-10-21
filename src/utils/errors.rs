@@ -42,7 +42,7 @@ impl fmt::Display for CPUError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CPUError::MemReadError(mem_read_error) => mem_read_error.fmt(f),
-            CPUError::BreakError => write!(f, "Program encountered a BRK op."),
+            CPUError::BreakError => write!(f, "Program encountered a BRK op loop."),
             CPUError::HaltError => write!(f, "Program encountered a KIL op."),
         }
     }
