@@ -5,6 +5,7 @@ use crate::graphics::control_register::ControlFlags;
 use crate::graphics::mask_register::MaskRegister;
 use crate::graphics::status_register::{StatusFlags, StatusRegister};
 use crate::graphics::{addr_register::AddrRegister, control_register::ControlRegister};
+use crate::graphics::frame::{Frame};
 use crate::utils::errors::MemReadError;
 
 const HBLANK_CYCLE: u16 = 341;
@@ -55,6 +56,7 @@ impl PPU {
             self.cycles %= HBLANK_CYCLE as usize;
             self.scanline += 1;
 
+            #[allow(clippy::collapsible_if)]
             if self.scanline == VBLANK_INTERRUPT {
                 if self.ctrl.get_flag(ControlFlags::GenerateNMI) {
                     self.status.set_flag(StatusFlags::AtVBlank, true);
@@ -136,6 +138,37 @@ impl PPU {
            (Mirroring::Horizontal, 3) => vram_index - 0x800,
            _ => vram_index,
         }
+    }
+
+    pub fn show_tile(chr_rom: &Vec<u8>, bank: usize, tile_number: usize) -> Frame {
+        assert!(bank <= 1);
+
+        let mut frame = Frame::default();
+        let bank = bank * 0x1000;
+
+        let tile = &chr_rom[(bank + tile_number * 16)..=(bank + tile_number * 16 + 15)];
+
+        for y in (0..=7).rev() {
+            let mut upper = tile[y];
+            let mut lower = tile[y+8];
+
+            for x in (0..=7).rev() {
+                let value = (1 & upper) << 1 | (1 & lower);
+                upper >>= 1;
+                lower >>= 1;
+
+                let color_index = match value {
+                    0 => 0x01,
+                    1 => 0x23,
+                    2 => 0x27,
+                    3 => 0x30,
+                    _ => unreachable!()
+                };
+                frame.set_pixel_palette(x, y, color_index);
+            }
+        }
+
+        frame
     }
 }
 
