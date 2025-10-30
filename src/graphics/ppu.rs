@@ -140,36 +140,6 @@ impl PPU {
         }
     }
 
-    pub fn show_tile(chr_rom: &Vec<u8>, bank: usize, tile_number: usize) -> Frame {
-        assert!(bank <= 1);
-
-        let mut frame = Frame::default();
-        let bank = bank * 0x1000;
-
-        let tile = &chr_rom[(bank + tile_number * 16)..=(bank + tile_number * 16 + 15)];
-
-        for y in (0..=7).rev() {
-            let mut upper = tile[y];
-            let mut lower = tile[y+8];
-
-            for x in (0..=7).rev() {
-                let value = (1 & upper) << 1 | (1 & lower);
-                upper >>= 1;
-                lower >>= 1;
-
-                let color_index = match value {
-                    0 => 0x01,
-                    1 => 0x23,
-                    2 => 0x27,
-                    3 => 0x30,
-                    _ => unreachable!()
-                };
-                frame.set_pixel_palette(x, y, color_index);
-            }
-        }
-
-        frame
-    }
 }
 
 
