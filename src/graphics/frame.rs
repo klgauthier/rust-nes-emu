@@ -2,6 +2,7 @@
 
 use crate::graphics::palette::{ColorRGB888};
 
+#[derive(Debug)]
 pub struct Frame {
     pub data: Vec<u8>,
 }

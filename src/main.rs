@@ -25,14 +25,14 @@ use std::path::Path;
 #[macro_use]
 extern crate lazy_static;
 
-const SCALE: f32 = 10f32;
+const SCALE: f32 = 30f32;
 const RESOLUTION: u32 = 32*(SCALE as u32);
 
 fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-    .window("Snake game", RESOLUTION, RESOLUTION)
+    .window("Rust NES Emu", RESOLUTION, RESOLUTION)
     .position_centered()
     .build().unwrap();
 
@@ -41,7 +41,7 @@ fn main() {
     canvas.set_scale(SCALE, SCALE).unwrap();
 
     let creator = canvas.texture_creator();
-    let mut texture = creator.create_texture_target(PixelFormatEnum::RGB24, 32, 32).unwrap();
+    let mut texture = creator.create_texture_target(PixelFormatEnum::RGB24, 16*16, 16*16).unwrap();
 
     let mut cpu = CPU::new();
     let rom_file_data = load_binary_from_file(Path::new("roms/pacman.nes"));
@@ -49,8 +49,12 @@ fn main() {
     //cpu.load(rom, Some(0xFFFC));
 
 
-    let tile_frame = show_tile(&rom.chr_rom, 1, 0);
-    texture.update(None, &tile_frame.data, 256*3).unwrap();
+    let mut frame = Frame::default();
+    for i in 0..=255 {
+        show_tile(&rom.chr_rom, 1, i, &mut frame);
+    }
+    texture.update(None, &frame.data, 256*3).unwrap();
+    canvas.copy(&texture, None, None).unwrap();
     canvas.present();
 
     loop {
@@ -148,15 +152,17 @@ fn read_screen_state(cpu: &mut CPU, frame: &mut [u8; 32*3*32]) -> bool {
 }
 
 
-fn show_tile(chr_rom: &Vec<u8>, bank: usize, tile_number: usize) -> Frame {
+fn show_tile(chr_rom: &Vec<u8>, bank: usize, tile_number: usize, frame: &mut Frame) {
     assert!(bank <= 1);
 
-    let mut frame = Frame::default();
     let bank = bank * 0x1000;
 
     let tile = &chr_rom[(bank + tile_number * 16)..=(bank + tile_number * 16 + 15)];
+    
+    let x_offset = tile_number*8 % (256-8);
+    let y_offset = tile_number / (256/8) * 8; 
 
-    for y in (0..=7).rev() {
+    for y in 0..=7 {
         let mut upper = tile[y];
         let mut lower = tile[y+8];
 
@@ -172,9 +178,7 @@ fn show_tile(chr_rom: &Vec<u8>, bank: usize, tile_number: usize) -> Frame {
                 3 => 0x30,
                 _ => unreachable!()
             };
-            frame.set_pixel_palette(x, y, color_index);
+            frame.set_pixel_palette(x + x_offset, y + y_offset, color_index);
         }
     }
-
-    frame
 }
